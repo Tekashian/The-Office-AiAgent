@@ -1,8 +1,65 @@
-# Office AI Agent
+# Office AI Agent 🤖
 
-Projekt systemu AI agenta do automatyzacji pracy biurowej, wykorzystujący Node.js, TypeScript, Next.js, Supabase i integrację z zewnętrznymi API AI.
+**Nowoczesny system AI do automatyzacji pracy biurowej** - inteligentny agent który zastępuje zwykłego pracownika biurowego, automatyzując zadania takie jak wysyłanie emaili, generowanie PDF-ów, web scraping i wiele więcej.
 
-## Struktura Projektu
+![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript)
+![Node.js](https://img.shields.io/badge/Node.js-20-green?style=flat&logo=node.js)
+![Tailwind](https://img.shields.io/badge/Tailwind-3.0-38B2AC?style=flat&logo=tailwind-css)
+
+## 📋 Spis treści
+
+- [Funkcjonalności](#-funkcjonalności)
+- [Technologie](#-technologie)
+- [Struktura projektu](#-struktura-projektu)
+- [Instalacja](#-instalacja)
+- [Konfiguracja](#-konfiguracja)
+- [Uruchomienie](#-uruchomienie)
+- [Dokumentacja API](#-dokumentacja-api)
+- [Screenshots](#-screenshots)
+
+## ✨ Funkcjonalności
+
+### 🤖 AI Agent Chat
+- Konwersacyjny interfejs z AI
+- Przetwarzanie zadań w języku naturalnym
+- Context-aware responses
+- Historia interakcji
+
+### 📧 Email Automation
+- Automatyczne wysyłanie emaili
+- Szablony wiadomości
+- Zaplanowane wysyłki
+- Obsługa załączników
+- Bulk email support
+
+### 📄 PDF Generator
+- Generowanie dokumentów PDF
+- Gotowe szablony (faktury, oferty, raporty)
+- AI-assisted content generation
+- Customizable layouts
+
+### 🌐 Web Scraper
+- Automatyczne zbieranie danych ze stron
+- Selektory CSS
+- Scheduled scraping
+- Data export (CSV, JSON)
+- AI-powered data processing
+
+### ⏰ Scheduled Tasks (Cron)
+- Zadania cykliczne
+- Flexible cron expressions
+- Task monitoring
+- Automatic retries
+- Email notifications
+
+### 📊 Dashboard
+- Real-time statistics
+- Task overview
+- Performance metrics
+- Activity logs
+
+## 🛠 Technologie
 
 ```
 the-office-Agent-ai/

@@ -13,6 +13,7 @@ import emailTemplateRoutes from './routes/emailTemplateRoutes';
 import pdfRoutes from './routes/pdfRoutes';
 import scraperRoutes from './routes/scraperRoutes';
 import cronRoutes from './routes/cronRoutes';
+import aiRoutes from './routes/aiRoutes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -41,6 +42,7 @@ app.use('/api/email-templates', emailTemplateRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/cron', cronRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

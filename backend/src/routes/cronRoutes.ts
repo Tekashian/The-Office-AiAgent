@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
-import { supabase } from '../config/supabase';
+import { supabaseAdmin } from '../config/supabase';
 import { CronService } from '../services/cronService';
 
 const router = Router();
@@ -24,7 +24,7 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
     }
 
     // Save to database
-    const { data, error } = await supabase
+    const { data, error} = await supabaseAdmin
       .from('cron_jobs')
       .insert({
         user_id: req.userId,
@@ -54,7 +54,7 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
             console.log(`Executing cron job: ${name} (${data.id})`);
             
             // Update last run time and execution count
-            await supabase
+            await supabaseAdmin
               .from('cron_jobs')
               .update({
                 last_run: new Date().toISOString(),
@@ -67,7 +67,7 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
             // For example: send email, generate PDF, scrape website, etc.
 
             // Update status back to active
-            await supabase
+            await supabaseAdmin
               .from('cron_jobs')
               .update({
                 status: 'active'
@@ -76,7 +76,7 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
           }
         });
 
-        await supabase
+        await supabaseAdmin
           .from('cron_jobs')
           .update({ status: 'active' })
           .eq('id', data.id);
@@ -108,7 +108,7 @@ router.get('/jobs', authenticateUser, async (req: AuthenticatedRequest, res: Res
   try {
     const { limit = 50, offset = 0, enabled } = req.query;
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('cron_jobs')
       .select('*')
       .eq('user_id', req.userId)
@@ -143,7 +143,7 @@ router.get('/jobs/:id', authenticateUser, async (req: AuthenticatedRequest, res:
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('cron_jobs')
       .select('*')
       .eq('id', id)
@@ -180,7 +180,7 @@ router.put('/jobs/:id', authenticateUser, async (req: AuthenticatedRequest, res:
     if (task_config !== undefined) updates.task_config = task_config;
     if (enabled !== undefined) updates.enabled = enabled;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('cron_jobs')
       .update(updates)
       .eq('id', id)
@@ -205,7 +205,7 @@ router.put('/jobs/:id', authenticateUser, async (req: AuthenticatedRequest, res:
           task: async () => {
             console.log(`Executing cron job: ${data.name} (${id})`);
             
-            await supabase
+            await supabaseAdmin
               .from('cron_jobs')
               .update({
                 last_run: new Date().toISOString(),
@@ -240,7 +240,7 @@ router.post('/jobs/:id/start', authenticateUser, async (req: AuthenticatedReques
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('cron_jobs')
       .select('*')
       .eq('id', id)
@@ -254,7 +254,7 @@ router.post('/jobs/:id/start', authenticateUser, async (req: AuthenticatedReques
 
     cronService.startJob(id);
 
-    await supabase
+    await supabaseAdmin
       .from('cron_jobs')
       .update({ 
         enabled: true,
@@ -283,7 +283,7 @@ router.post('/jobs/:id/stop', authenticateUser, async (req: AuthenticatedRequest
   try {
     const { id } = req.params;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('cron_jobs')
       .select('*')
       .eq('id', id)
@@ -297,7 +297,7 @@ router.post('/jobs/:id/stop', authenticateUser, async (req: AuthenticatedRequest
 
     cronService.stopJob(id);
 
-    await supabase
+    await supabaseAdmin
       .from('cron_jobs')
       .update({ 
         enabled: false,
@@ -330,7 +330,7 @@ router.delete('/jobs/:id', authenticateUser, async (req: AuthenticatedRequest, r
     cronService.stopJob(id);
 
     // Delete from database
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('cron_jobs')
       .delete()
       .eq('id', id)

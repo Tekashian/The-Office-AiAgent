@@ -84,10 +84,14 @@ export default function EmailPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setTemplates(data);
+        // Ensure data is an array
+        setTemplates(Array.isArray(data) ? data : []);
+      } else {
+        setTemplates([]);
       }
     } catch (error) {
       console.error('Failed to fetch templates:', error);
+      setTemplates([]);
     }
   }, [showToast]);
 

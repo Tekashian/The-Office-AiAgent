@@ -152,8 +152,9 @@ router.get('/emails', authenticateUser, async (req: AuthenticatedRequest, res: R
 router.get('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    console.log('📧 Fetching email:', id, 'for user:', req.userId);
 
-    const { data: email, error } = await supabase
+    const { data: email, error } = await supabaseAdmin
       .from('emails_inbox')
       .select('*')
       .eq('id', id)
@@ -161,24 +162,38 @@ router.get('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, re
       .single();
 
     if (error || !email) {
+      console.error('❌ Email not found:', error);
       res.status(404).json({ error: 'Email not found' });
       return;
     }
 
-    // Get AI draft if exists
-    const { data: draft } = await supabase
+    console.log('✅ Email found:', email.subject);
+
+    // Get AI draft if exists - use maybeSingle() instead of single()
+    const { data: drafts, error: draftError } = await supabaseAdmin
       .from('ai_email_drafts')
       .select('*')
       .eq('inbox_email_id', id)
       .eq('user_id', req.userId)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
 
-    res.json({ email, draft: draft || null });
+    if (draftError) {
+      console.error('⚠️ Draft fetch error:', draftError);
+    }
+
+    const draft = drafts && drafts.length > 0 ? drafts[0] : null;
+    
+    if (draft) {
+      console.log('📝 Draft found for email:', email.subject);
+    } else {
+      console.log('ℹ️ No draft found for email:', email.subject);
+    }
+
+    res.json({ email, draft });
   } catch (error) {
-    console.error('Get email error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Get email error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
@@ -196,7 +211,7 @@ router.patch('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, 
     if (typeof is_starred === 'boolean') updates.is_starred = is_starred;
     if (typeof is_archived === 'boolean') updates.is_archived = is_archived;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('emails_inbox')
       .update(updates)
       .eq('id', id)
@@ -217,6 +232,57 @@ router.patch('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, 
 });
 
 /**
+ * POST /api/email-inbox/emails/:id/generate-draft
+ * Generate AI draft for an email
+ */
+router.post('/emails/:id/generate-draft', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    console.log('🤖 Generating draft for email:', id);
+
+    // Get email from database
+    const { data: email, error: emailError } = await supabaseAdmin
+      .from('emails_inbox')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', req.userId)
+      .single();
+
+    if (emailError || !email) {
+      console.error('❌ Email not found:', emailError);
+      res.status(404).json({ error: 'Email not found' });
+      return;
+    }
+
+    // Check if draft already exists
+    const { data: existingDraft } = await supabaseAdmin
+      .from('ai_email_drafts')
+      .select('*')
+      .eq('inbox_email_id', id)
+      .eq('user_id', req.userId)
+      .single();
+
+    if (existingDraft) {
+      console.log('✅ Draft already exists, returning existing draft');
+      res.json({ draft: existingDraft });
+      return;
+    }
+
+    // Generate draft using email service
+    const draft = await emailInboxService.generateDraftForEmail(req.userId!, email);
+
+    console.log('✅ Draft generated successfully');
+    res.json({ draft });
+  } catch (error) {
+    console.error('❌ Generate draft error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate draft', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
  * GET /api/email-inbox/drafts
  * Get AI generated drafts
  */
@@ -224,7 +290,7 @@ router.get('/drafts', authenticateUser, async (req: AuthenticatedRequest, res: R
   try {
     const { status = 'pending' } = req.query;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('ai_email_drafts')
       .select(`
         *,
@@ -261,14 +327,16 @@ router.patch('/drafts/:id', authenticateUser, async (req: AuthenticatedRequest, 
     const { id } = req.params;
     const { status, edited_body } = req.body;
 
+    console.log('📝 Updating draft:', id, { status, edited_body_length: edited_body?.length });
+
     const updates: any = {};
     if (status) updates.status = status;
-    if (edited_body) {
+    if (edited_body !== undefined) {
       updates.edited_body = edited_body;
       updates.user_edited = true;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('ai_email_drafts')
       .update(updates)
       .eq('id', id)
@@ -277,13 +345,15 @@ router.patch('/drafts/:id', authenticateUser, async (req: AuthenticatedRequest, 
       .single();
 
     if (error) {
+      console.error('❌ Update draft error:', error);
       res.status(500).json({ error: 'Update failed', details: error.message });
       return;
     }
 
+    console.log('✅ Draft updated successfully');
     res.json({ success: true, draft: data });
   } catch (error) {
-    console.error('Update draft error:', error);
+    console.error('❌ Update draft error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

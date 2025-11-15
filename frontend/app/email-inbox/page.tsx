@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { apiClient } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
 
 interface InboxEmail {
   id: string;
@@ -60,6 +61,7 @@ interface AIDraft {
 }
 
 export default function EmailInboxPage() {
+  const { showToast } = useToast();
   const [user, setUser] = useState<any>(null);
   const [emails, setEmails] = useState<InboxEmail[]>([]);
   const [drafts, setDrafts] = useState<AIDraft[]>([]);
@@ -123,19 +125,15 @@ export default function EmailInboxPage() {
     try {
       setScanning(true);
       const response = await apiClient.post('/api/email-inbox/scan');
-      alert(`Inbox scanned! Found ${response.data.emailsFound} new emails.`);
+      showToast(`Inbox scanned! Found ${response.data.emailsFound} new emails.`, 'success');
       await loadData();
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || 'Scan failed';
       if (errorMsg.includes('No active IMAP configuration')) {
-        alert(`⚠️ IMAP Not Configured!\n\n` +
-          `To scan your inbox, you need to configure IMAP:\n\n` +
-          `1. Gmail: imap.gmail.com (port 993)\n` +
-          `2. Generate App Password: myaccount.google.com/apppasswords\n` +
-          `3. Click "Configure IMAP" button below\n\n` +
-          `Full guide: Check EMAIL_INBOX_GUIDE.md file`);
+        showToast('IMAP not configured! Please configure your email settings first.', 'error');
+        setShowImapModal(true);
       } else {
-        alert(errorMsg);
+        showToast(errorMsg, 'error');
       }
     } finally {
       setScanning(false);
@@ -180,24 +178,22 @@ export default function EmailInboxPage() {
       });
       setSelectedDraft({ ...selectedDraft, edited_body: editedBody, user_edited: true, status: 'edited' });
       setEditingDraft(false);
-      alert('Draft saved!');
+      showToast('Draft saved successfully!', 'success');
     } catch (error) {
-      alert('Failed to save draft');
+      showToast('Failed to save draft', 'error');
     }
   };
 
   const handleSendDraft = async () => {
     if (!selectedDraft) return;
 
-    if (!confirm('Send this email?')) return;
-
     try {
       await apiClient.post(`/api/email-inbox/drafts/${selectedDraft.id}/send`);
-      alert('Email sent successfully!');
+      showToast('Email sent successfully!', 'success');
       setSelectedDraft({ ...selectedDraft, status: 'sent' });
       await loadData();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Send failed');
+      showToast(error.response?.data?.error || 'Send failed', 'error');
     }
   };
 
@@ -207,9 +203,10 @@ export default function EmailInboxPage() {
     try {
       await apiClient.patch(`/api/email-inbox/drafts/${selectedDraft.id}`, { status: 'rejected' });
       setSelectedDraft({ ...selectedDraft, status: 'rejected' });
+      showToast('Draft rejected', 'info');
       await loadData();
     } catch (error) {
-      alert('Failed to reject draft');
+      showToast('Failed to reject draft', 'error');
     }
   };
 
@@ -222,9 +219,9 @@ export default function EmailInboxPage() {
       setSelectedDraft(response.data.draft);
       setEditedBody(response.data.draft.body);
       setEditingDraft(true); // Włącz tryb edycji od razu
-      alert('✅ AI draft generated successfully! You can now edit it.');
+      showToast('AI draft generated successfully! You can now edit it.', 'success');
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to generate draft');
+      showToast(error.response?.data?.error || 'Failed to generate draft', 'error');
     } finally {
       setGeneratingDraft(false);
     }

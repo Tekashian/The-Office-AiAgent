@@ -286,7 +286,19 @@ Respond ONLY with valid JSON, no additional text.`;
 
       const response = await aiService.chat(prompt, []);
       const cleanResponse = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      
+      if (!cleanResponse || cleanResponse.length < 10) {
+        console.error('AI returned empty or too short response:', cleanResponse);
+        throw new Error('Empty AI response');
+      }
+      
       const analysis = JSON.parse(cleanResponse);
+      
+      // Validate required fields
+      if (!analysis.priority || !analysis.category || !analysis.sentiment) {
+        console.error('AI returned incomplete analysis:', analysis);
+        throw new Error('Incomplete AI analysis');
+      }
 
       return analysis;
     } catch (error) {
@@ -359,10 +371,74 @@ Respond ONLY with valid JSON.`;
   }
 
   /**
+   * Generate AI draft for an existing email in database
+   */
+  async generateDraftForEmail(userId: string, email: any): Promise<any> {
+    try {
+      const prompt = `Generate a professional email response:
+
+Original Email:
+From: ${email.from_address} ${email.from_name ? `(${email.from_name})` : ''}
+Subject: ${email.subject}
+Body: ${email.body_text.substring(0, 1500)}
+
+Generate a response in this JSON format:
+{
+  "subject": "Re: ${email.subject}",
+  "body": "Professional response body",
+  "tone": "professional|friendly|formal",
+  "reasoning": "Why this response is appropriate",
+  "confidence": 0.85
+}
+
+Make the response:
+- Professional and courteous
+- Address the sender's concerns
+- Keep it concise (2-3 paragraphs max)
+- Sign off appropriately
+
+Respond ONLY with valid JSON.`;
+
+      const response = await aiService.chat(prompt, []);
+      const cleanResponse = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      const draft = JSON.parse(cleanResponse);
+
+      // Save draft to database
+      const { data: savedDraft, error } = await supabaseAdmin
+        .from('ai_email_drafts')
+        .insert({
+          user_id: userId,
+          inbox_email_id: email.id,
+          to_address: email.from_address,
+          subject: draft.subject,
+          body: draft.body,
+          ai_confidence: draft.confidence || 0.8,
+          ai_reasoning: draft.reasoning,
+          tone: draft.tone || 'professional',
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to save draft: ${error.message}`);
+      }
+
+      console.log('✅ AI draft generated for email:', email.subject);
+      return savedDraft;
+    } catch (error) {
+      console.error('Generate draft error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Send approved draft
    */
   async sendApprovedDraft(draftId: string, userId: string): Promise<boolean> {
     try {
+      console.log('📧 Sending draft:', draftId);
+
       // Get draft
       const { data: draft, error: draftError } = await supabaseAdmin
         .from('ai_email_drafts')
@@ -372,45 +448,56 @@ Respond ONLY with valid JSON.`;
         .single();
 
       if (draftError || !draft) {
+        console.error('❌ Draft not found:', draftError);
         throw new Error('Draft not found');
       }
 
-      // Get user's SMTP config
-      const { data: smtpConfigs } = await supabaseAdmin
-        .from('user_email_configs')
+      console.log('✅ Draft found:', draft.subject);
+
+      // Get user's IMAP config (we'll use it for SMTP - Gmail uses same credentials)
+      const { data: imapConfigs } = await supabaseAdmin
+        .from('user_imap_configs')
         .select('*')
         .eq('user_id', userId)
+        .eq('is_active', true)
         .limit(1);
 
-      if (!smtpConfigs || smtpConfigs.length === 0) {
-        throw new Error('No SMTP configuration found');
+      if (!imapConfigs || imapConfigs.length === 0) {
+        console.error('❌ No IMAP configuration found');
+        throw new Error('No email configuration found. Please configure IMAP/SMTP settings.');
       }
 
-      const smtpConfig = smtpConfigs[0];
-      const decryptedPassword = decrypt(smtpConfig.smtp_password);
+      const imapConfig = imapConfigs[0];
+      const decryptedPassword = decrypt(imapConfig.imap_password);
 
-      // Send email
+      console.log('🔓 IMAP config decrypted, using for SMTP');
+
+      // Use Gmail SMTP (same credentials as IMAP)
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({
-        host: smtpConfig.smtp_host,
-        port: smtpConfig.smtp_port,
-        secure: smtpConfig.smtp_port === 465,
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false, // Use STARTTLS
         auth: {
-          user: smtpConfig.smtp_user,
+          user: imapConfig.imap_user,
           pass: decryptedPassword,
         },
       });
 
-      const bodyToSend = draft.user_edited ? draft.edited_body : draft.body;
+      const bodyToSend = draft.edited_body || draft.body;
+
+      console.log('📤 Sending email to:', draft.to_address);
 
       const info = await transporter.sendMail({
-        from: smtpConfig.smtp_user,
+        from: imapConfig.imap_user,
         to: draft.to_address,
         cc: draft.cc_addresses?.join(', '),
         subject: draft.subject,
         text: bodyToSend,
         html: `<p>${bodyToSend.replace(/\n/g, '<br>')}</p>`,
       });
+
+      console.log('✅ Email sent, message ID:', info.messageId);
 
       // Update draft status
       await supabaseAdmin
@@ -422,19 +509,11 @@ Respond ONLY with valid JSON.`;
         })
         .eq('id', draftId);
 
-      // Save to sent emails
-      await supabaseAdmin.from('emails_sent').insert({
-        user_id: userId,
-        recipient: draft.to_address,
-        subject: draft.subject,
-        body: bodyToSend,
-        status: 'sent',
-        message_id: info.messageId,
-      });
+      console.log('✅ Draft status updated to sent');
 
       return true;
     } catch (error) {
-      console.error('Send draft error:', error);
+      console.error('❌ Send draft error:', error);
       throw error;
     }
   }

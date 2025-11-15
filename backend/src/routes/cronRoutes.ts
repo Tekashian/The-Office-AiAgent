@@ -63,8 +63,72 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
               })
               .eq('id', data.id);
 
-            // Here you would execute the actual task based on task_type
-            // For example: send email, generate PDF, scrape website, etc.
+            // Execute task based on task_type
+            try {
+              if (task_type === 'email') {
+                // Get user's SMTP config
+                const { data: imapConfigs } = await supabaseAdmin
+                  .from('user_imap_configs')
+                  .select('*')
+                  .eq('user_id', req.userId)
+                  .eq('is_active', true)
+                  .limit(1);
+
+                if (imapConfigs && imapConfigs.length > 0) {
+                  const imapConfig = imapConfigs[0];
+                  const { decrypt } = await import('../utils/encryption');
+                  const decryptedPassword = decrypt(imapConfig.imap_password);
+
+                  // Create transporter
+                  const nodemailer = await import('nodemailer');
+                  const transporter = nodemailer.default.createTransport({
+                    host: 'smtp.gmail.com',
+                    port: 587,
+                    secure: false,
+                    auth: {
+                      user: imapConfig.imap_user,
+                      pass: decryptedPassword
+                    }
+                  });
+
+                  // Send email using config from task_config
+                  const emailConfig = task_config as any;
+                  const info = await transporter.sendMail({
+                    from: imapConfig.imap_user,
+                    to: emailConfig.recipient,
+                    subject: emailConfig.subject,
+                    text: emailConfig.body,
+                    html: emailConfig.body.replace(/\n/g, '<br>')
+                  });
+
+                  console.log(`📧 Cron email sent: ${info.messageId} to ${emailConfig.recipient}`);
+
+                  // Log to emails_sent table
+                  await supabaseAdmin
+                    .from('emails_sent')
+                    .insert({
+                      user_id: req.userId,
+                      recipient: emailConfig.recipient,
+                      subject: emailConfig.subject,
+                      body: emailConfig.body,
+                      status: 'sent',
+                      message_id: info.messageId,
+                      has_attachments: false,
+                      attachments_count: 0
+                    });
+                } else {
+                  console.error('❌ No SMTP config found for user');
+                }
+              } else if (task_type === 'pdf') {
+                console.log('📄 PDF generation task - not implemented yet');
+              } else if (task_type === 'scraping') {
+                console.log('🕷️ Web scraping task - not implemented yet');
+              } else {
+                console.log('🔧 Custom task execution');
+              }
+            } catch (taskError) {
+              console.error('❌ Task execution failed:', taskError);
+            }
 
             // Update status back to active
             await supabaseAdmin

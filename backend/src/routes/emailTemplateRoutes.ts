@@ -65,7 +65,7 @@ router.get('/', authenticateUser, async (req: AuthenticatedRequest, res: Respons
       return;
     }
 
-    res.json({ templates: data || [] });
+    res.json(data || []);
   } catch (error: any) {
     console.error('❌ Get templates error:', error);
     console.error('Error details:', error.message);

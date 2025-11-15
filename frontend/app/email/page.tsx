@@ -69,28 +69,33 @@ export default function EmailPage() {
     try {
       const token = await getAccessToken();
       if (!token) {
-        console.error('No auth token found');
+        console.error('❌ No auth token found for templates');
+        setTemplates([]);
         return;
       }
       
+      console.log('🔄 Fetching templates...');
       const response = await fetch('http://localhost:3001/api/email-templates', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.status === 401) {
         showToast('Sesja wygasła, zaloguj się ponownie', 'error');
+        setTemplates([]);
         return;
       }
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Templates fetched:', data);
         // Ensure data is an array
         setTemplates(Array.isArray(data) ? data : []);
       } else {
+        console.error('❌ Templates fetch failed:', response.status);
         setTemplates([]);
       }
     } catch (error) {
-      console.error('Failed to fetch templates:', error);
+      console.error('❌ Failed to fetch templates:', error);
       setTemplates([]);
     }
   }, [showToast]);
@@ -100,30 +105,35 @@ export default function EmailPage() {
       setLoadingHistory(true);
       const token = await getAccessToken();
       if (!token) {
-        console.error('No auth token found');
+        console.error('❌ No auth token found for history');
+        setEmailHistory([]);
         setLoadingHistory(false);
         return;
       }
       
+      console.log('🔄 Fetching email history...');
       const response = await fetch('http://localhost:3001/api/email/history', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.status === 401) {
         showToast('Sesja wygasła, zaloguj się ponownie', 'error');
+        setEmailHistory([]);
         setLoadingHistory(false);
         return;
       }
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Email history fetched:', data);
         // Ensure data is an array
         setEmailHistory(Array.isArray(data) ? data : []);
       } else {
+        console.error('❌ History fetch failed:', response.status);
         setEmailHistory([]);
       }
     } catch (error) {
-      console.error('Failed to fetch email history:', error);
+      console.error('❌ Failed to fetch email history:', error);
       setEmailHistory([]);
     } finally {
       setLoadingHistory(false);

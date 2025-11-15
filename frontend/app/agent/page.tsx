@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, Sparkles, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
+import { apiClient } from '@/lib/api';
 
 interface Message {
   id: string;
-  role: 'user' | 'agent';
+  role: 'user' | 'model';
   content: string;
   timestamp: Date;
 }
@@ -17,21 +18,30 @@ export default function AgentPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      role: 'agent',
+      role: 'model',
       content: 'Cześć! Jestem Twoim AI agentem biurowym. Mogę pomóc Ci w automatyzacji zadań, wysyłaniu emaili, generowaniu PDF-ów i wiele więcej. W czym mogę Ci dziś pomóc?',
       timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: input.trim(),
       timestamp: new Date(),
     };
 
@@ -39,17 +49,44 @@ export default function AgentPage() {
     setInput('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const agentMessage: Message = {
+    try {
+      // Build conversation history in Gemini format
+      // Only include messages that have actual content
+      const conversationHistory = messages
+        .filter((msg) => msg.id !== '1' && msg.content && msg.content.trim()) // Exclude initial greeting and empty messages
+        .map((msg) => ({
+          role: msg.role,
+          text: msg.content, // Backend expects 'text' not 'parts'
+        }));
+
+      const response = await apiClient.post('/api/agent/chat', {
+        message: userMessage.content,
+        conversationHistory,
+      });
+
+      if (response.data.success) {
+        const agentMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'model',
+          content: response.data.data.content,
+          timestamp: new Date(response.data.data.timestamp),
+        };
+        setMessages((prev) => [...prev, agentMessage]);
+      } else {
+        throw new Error(response.data.message || 'Failed to get response');
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        role: 'agent',
-        content: 'Rozumiem! Pozwól, że pomogę Ci z tym zadaniem. Przetwarzam Twoją prośbę...',
+        role: 'model',
+        content: 'Przepraszam, wystąpił błąd podczas przetwarzania Twojej wiadomości. Upewnij się, że backend jest uruchomiony i klucz API Gemini jest skonfigurowany w pliku .env.',
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, agentMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -99,7 +136,7 @@ export default function AgentPage() {
                         : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
                     }`}
                   >
-                    <p className="text-sm">{message.content}</p>
+                    <p className="whitespace-pre-wrap text-sm">{message.content}</p>
                     <p
                       className={`mt-1 text-xs ${
                         message.role === 'user'
@@ -132,6 +169,7 @@ export default function AgentPage() {
                 </div>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Input */}

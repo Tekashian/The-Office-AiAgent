@@ -1,16 +1,22 @@
+// Load environment variables FIRST before any other imports
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Application } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
-
-// Load environment variables
-dotenv.config();
+import agentRoutes from './routes/agentRoutes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -19,8 +25,8 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', message: 'Office Agent API is running' });
 });
 
-// Routes will be added here
-// app.use('/api/agent', agentRoutes);
+// API Routes
+app.use('/api/agent', agentRoutes);
 // app.use('/api/tasks', taskRoutes);
 // app.use('/api/emails', emailRoutes);
 

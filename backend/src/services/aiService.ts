@@ -52,9 +52,23 @@ export class AIService {
         },
       });
 
+      console.log('🔍 Full Gemini API response:', JSON.stringify(response.data, null, 2).substring(0, 1000));
+
+      // Check for blocked content
+      if (response.data.candidates?.[0]?.finishReason === 'SAFETY') {
+        console.error('❌ Content blocked by Gemini safety filters');
+        throw new Error('Content generation blocked by safety filters');
+      }
+
       // Extract text from Gemini response structure
       const generatedText =
         response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (!generatedText) {
+        console.error('❌ No text in Gemini response');
+        console.error('Candidates:', JSON.stringify(response.data.candidates));
+        throw new Error('Gemini returned empty response');
+      }
 
       return {
         content: generatedText,
@@ -199,6 +213,67 @@ CRITICAL: Response must be VALID JSON ONLY. Keep body SHORT (max 150 words).`;
         throw new Error('AI returned invalid JSON format');
       }
       throw new Error('Failed to generate email template');
+    }
+  }
+
+  /**
+   * Generate PDF content based on category
+   */
+  async generatePDFContent(category: string, additionalContext?: string): Promise<string> {
+    try {
+      const prompt = `Generate professional PDF document content for the category: "${category}".
+${additionalContext ? `Additional context: ${additionalContext}` : ''}
+
+Requirements:
+- Create content in Polish
+- Include appropriate sections for this document type
+- Use placeholders like {{company_name}}, {{date}}, {{client_name}} where appropriate
+- Make it professional and well-structured
+- Keep it concise (max 500 words)
+
+Category-specific guidelines:
+- Faktura VAT: Include header, company details, items table, total, payment info
+- Oferta handlowa: Include introduction, offer details, pricing, validity, terms
+- Umowa: Include parties, subject, terms, responsibilities, signatures
+- Raport: Include title, executive summary, main content, conclusions
+
+Return ONLY the document content in plain text format (NO JSON, NO markdown, just the text content).`;
+
+      console.log('🔍 Sending PDF generation request to Gemini...');
+      const response = await this.sendRequest({
+        prompt,
+        temperature: 0.6,
+        maxTokens: 1500
+      });
+
+      console.log('📦 Raw Gemini response:', JSON.stringify(response).substring(0, 300));
+      console.log('📦 Response type:', typeof response);
+      console.log('📦 Response.content:', response.content?.substring(0, 200));
+      
+      // Gemini returns response.content, not the response itself as string
+      let content = '';
+      if (typeof response === 'string') {
+        content = response;
+      } else if (response && response.content) {
+        content = response.content;
+      } else {
+        console.error('❌ Unexpected response structure:', response);
+        throw new Error('AI returned invalid response structure');
+      }
+      
+      if (!content || content.trim().length === 0) {
+        console.error('❌ Content is empty after extraction');
+        throw new Error('AI returned empty PDF content');
+      }
+      
+      console.log('✅ PDF content extracted, length:', content.length);
+      return content.trim();
+    } catch (error) {
+      console.error('❌ PDF content generation failed:', error);
+      if (error instanceof Error) {
+        throw new Error(`Failed to generate PDF content: ${error.message}`);
+      }
+      throw new Error('Failed to generate PDF content');
     }
   }
 }

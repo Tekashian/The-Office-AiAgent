@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getAccessToken } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -12,9 +13,9 @@ export const apiClient = axios.create({
 
 // Request interceptor
 apiClient.interceptors.request.use(
-  (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('auth_token');
+  async (config) => {
+    // Get token from Supabase session
+    const token = await getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -31,8 +32,9 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Handle unauthorized access
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth';
+      }
     }
     return Promise.reject(error);
   }

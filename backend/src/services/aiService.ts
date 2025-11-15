@@ -98,7 +98,7 @@ export class AIService {
     conversationHistory?: Array<{ role: 'user' | 'model'; text: string }>
   ): Promise<string> {
     try {
-      const contents = [];
+      const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
       // Add conversation history
       if (conversationHistory && conversationHistory.length > 0) {

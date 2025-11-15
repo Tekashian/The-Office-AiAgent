@@ -6,6 +6,12 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import { errorHandler } from './middleware/errorHandler';
 import agentRoutes from './routes/agentRoutes';
+import emailRoutes from './routes/emailRoutes';
+import emailConfigRoutes from './routes/emailConfigRoutes';
+import emailInboxRoutes from './routes/emailInboxRoutes';
+import pdfRoutes from './routes/pdfRoutes';
+import scraperRoutes from './routes/scraperRoutes';
+import cronRoutes from './routes/cronRoutes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -27,8 +33,12 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/agent', agentRoutes);
-// app.use('/api/tasks', taskRoutes);
-// app.use('/api/emails', emailRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/email-config', emailConfigRoutes);
+app.use('/api/email-inbox', emailInboxRoutes);
+app.use('/api/pdf', pdfRoutes);
+app.use('/api/scraper', scraperRoutes);
+app.use('/api/cron', cronRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

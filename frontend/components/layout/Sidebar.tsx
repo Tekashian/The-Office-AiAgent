@@ -6,7 +6,8 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Bot, 
-  Mail, 
+  Mail,
+  Inbox,
   FileText, 
   Globe, 
   Clock,
@@ -21,6 +22,7 @@ import { cn } from '@/lib/utils';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'AI Agent', href: '/agent', icon: Bot },
+  { name: 'AI Email Inbox', href: '/email-inbox', icon: Inbox },
   { name: 'Email', href: '/email', icon: Mail },
   { name: 'PDF Generator', href: '/pdf', icon: FileText },
   { name: 'Web Scraper', href: '/scraper', icon: Globe },

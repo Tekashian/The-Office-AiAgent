@@ -1,13 +1,16 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import aiService from '../services/aiService';
+import agentOrchestrator from '../services/agentOrchestrator';
+import { optionalAuth, AuthenticatedRequest } from '../middleware/auth';
+import { supabase } from '../config/supabase';
 
 const router = Router();
 
 /**
  * POST /api/agent/chat
- * Chat with AI agent
+ * Chat with AI agent (with tool execution capabilities)
  */
-router.post('/chat', async (req: Request, res: Response): Promise<void> => {
+router.post('/chat', optionalAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { message, conversationHistory } = req.body;
 
@@ -19,7 +22,33 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const response = await aiService.chat(message, conversationHistory);
+    // Use agent orchestrator to process message with tool execution
+    const response = await agentOrchestrator.processMessage(
+      message,
+      req.userId,
+      conversationHistory
+    );
+
+    // Save chat message to database if user is authenticated
+    if (req.userId) {
+      try {
+        await supabase.from('chat_messages').insert([
+          {
+            user_id: req.userId,
+            role: 'user',
+            content: message
+          },
+          {
+            user_id: req.userId,
+            role: 'assistant',
+            content: response
+          }
+        ]);
+      } catch (dbError) {
+        console.error('Failed to save chat messages:', dbError);
+        // Continue even if database save fails
+      }
+    }
 
     res.json({
       success: true,
@@ -40,9 +69,9 @@ router.post('/chat', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * POST /api/agent/task
- * Process a task with AI
+ * Process a task with AI (optional authentication)
  */
-router.post('/task', async (req: Request, res: Response): Promise<void> => {
+router.post('/task', optionalAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { description, context } = req.body;
 
@@ -75,9 +104,9 @@ router.post('/task', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * POST /api/agent/analyze
- * Analyze text with AI
+ * Analyze text with AI (optional authentication)
  */
-router.post('/analyze', async (req: Request, res: Response): Promise<void> => {
+router.post('/analyze', optionalAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { text, analysisType } = req.body;
 

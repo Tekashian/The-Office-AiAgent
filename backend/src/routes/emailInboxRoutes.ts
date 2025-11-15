@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { encrypt } from '../utils/encryption';
 import emailInboxService from '../services/emailInboxService';
 
@@ -12,6 +12,11 @@ const router = Router();
  */
 router.post('/imap-config', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    console.log('📥 IMAP config request received:', {
+      userId: req.userId,
+      body: { ...req.body, imap_password: '***' },
+    });
+
     const {
       config_name,
       imap_host,
@@ -23,9 +28,12 @@ router.post('/imap-config', authenticateUser, async (req: AuthenticatedRequest, 
       scan_interval_minutes,
     } = req.body;
 
+    console.log('🔐 Encrypting password...');
     const encryptedPassword = encrypt(imap_password);
+    console.log('✅ Password encrypted successfully');
 
-    const { data, error } = await supabase
+    console.log('💾 Inserting into database (using service role to bypass RLS)...');
+    const { data, error } = await supabaseAdmin
       .from('user_imap_configs')
       .insert({
         user_id: req.userId,
@@ -43,14 +51,19 @@ router.post('/imap-config', authenticateUser, async (req: AuthenticatedRequest, 
       .single();
 
     if (error) {
+      console.error('❌ Database error:', error);
       res.status(500).json({ error: 'Failed to save IMAP config', details: error.message });
       return;
     }
 
+    console.log('✅ IMAP config saved successfully');
     res.json({ success: true, config: data });
   } catch (error) {
-    console.error('Save IMAP config error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ Save IMAP config error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 });
 
@@ -103,7 +116,7 @@ router.get('/emails', authenticateUser, async (req: AuthenticatedRequest, res: R
   try {
     const { unread_only, priority, limit = 50 } = req.query;
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('emails_inbox')
       .select('*')
       .eq('user_id', req.userId)

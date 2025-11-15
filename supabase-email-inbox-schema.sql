@@ -134,31 +134,34 @@ ALTER TABLE email_scan_logs ENABLE ROW LEVEL SECURITY;
 
 -- IMAP Configs policies
 CREATE POLICY "Users can manage own IMAP configs" ON user_imap_configs
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Inbox policies
 CREATE POLICY "Users can view own inbox" ON emails_inbox
   FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own inbox" ON emails_inbox
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "System can insert inbox emails" ON emails_inbox
-  FOR INSERT WITH CHECK (true); -- Backend service inserts
+CREATE POLICY "Users can insert own inbox emails" ON emails_inbox
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Drafts policies
 CREATE POLICY "Users can view own drafts" ON ai_email_drafts
   FOR SELECT USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own drafts" ON ai_email_drafts
-  FOR UPDATE USING (auth.uid() = user_id);
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "System can insert drafts" ON ai_email_drafts
-  FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can insert own drafts" ON ai_email_drafts
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Scan logs policies
 CREATE POLICY "Users can view own scan logs" ON email_scan_logs
   FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own scan logs" ON email_scan_logs
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- ========================================
 -- TRIGGERS

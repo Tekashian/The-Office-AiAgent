@@ -214,19 +214,37 @@ export default function EmailInboxPage() {
 
   const handleSaveImapConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Trim whitespace from email and password
+    const trimmedEmail = imapForm.imap_user.trim();
+    const trimmedPassword = imapForm.imap_password.trim();
+    
+    console.log('🔧 Saving IMAP configuration...');
+    console.log('📧 Email:', trimmedEmail);
+    console.log('🔐 Password length:', trimmedPassword.length);
+    
     try {
-      await apiClient.post('/api/email-inbox/imap-config', {
+      console.log('📡 Sending POST request to /api/email-inbox/imap-config');
+      const response = await apiClient.post('/api/email-inbox/imap-config', {
         config_name: 'My Gmail',
         imap_host: 'imap.gmail.com',
         imap_port: 993,
-        imap_user: imapForm.imap_user,
-        imap_password: imapForm.imap_password,
+        imap_user: trimmedEmail,
+        imap_password: trimmedPassword,
         use_ssl: true,
       });
+      console.log('✅ IMAP config saved successfully:', response.data);
       alert('✅ IMAP configured successfully!');
       setShowImapModal(false);
       setImapForm({ imap_user: '', imap_password: '' });
     } catch (err: any) {
+      console.error('❌ IMAP configuration failed:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        config: err.config,
+      });
       alert('❌ Failed: ' + (err.response?.data?.error || err.message));
     }
   };

@@ -2,7 +2,7 @@
 import Imap from 'imap';
 // @ts-ignore - No TypeScript types available
 import { simpleParser } from 'mailparser';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';
 import aiService from './aiService';
 
@@ -34,8 +34,8 @@ class EmailInboxService {
    */
   async scanInbox(userId: string): Promise<{ success: boolean; emailsFound: number }> {
     try {
-      // Get user's IMAP config
-      const { data: configs, error } = await supabase
+      // Get user's IMAP config (using admin client to bypass RLS)
+      const { data: configs, error } = await supabaseAdmin
         .from('user_imap_configs')
         .select('*')
         .eq('user_id', userId)
@@ -47,10 +47,20 @@ class EmailInboxService {
       }
 
       const config = configs[0] as ImapConfig;
+      console.log('🔍 IMAP Config found:', {
+        id: config.id,
+        user: config.imap_user,
+        host: config.imap_host,
+        port: config.imap_port,
+        ssl: config.use_ssl,
+        encrypted_password_length: config.imap_password.length,
+      });
+      
       const decryptedPassword = decrypt(config.imap_password);
+      console.log('🔓 Password decrypted, length:', decryptedPassword.length);
 
-      // Create scan log
-      const { data: scanLog } = await supabase
+      // Create scan log (using admin client)
+      const { data: scanLog } = await supabaseAdmin
         .from('email_scan_logs')
         .insert({
           user_id: userId,
@@ -72,7 +82,7 @@ class EmailInboxService {
       }
 
       // Update scan log
-      await supabase
+      await supabaseAdmin
         .from('email_scan_logs')
         .update({
           scan_completed_at: new Date().toISOString(),
@@ -84,7 +94,7 @@ class EmailInboxService {
         .eq('id', scanLog.id);
 
       // Update last_scan_at
-      await supabase
+      await supabaseAdmin
         .from('user_imap_configs')
         .update({ last_scan_at: new Date().toISOString() })
         .eq('id', config.id);
@@ -122,8 +132,8 @@ class EmailInboxService {
             return;
           }
 
-          // Search for unread emails
-          imap.search(['UNSEEN'], (searchErr: Error | null, results: number[]) => {
+          // Search for last 10 emails (newest first)
+          imap.search(['ALL'], (searchErr: Error | null, results: number[]) => {
             if (searchErr) {
               reject(searchErr);
               return;
@@ -135,7 +145,11 @@ class EmailInboxService {
               return;
             }
 
-            const fetch = imap.fetch(results, { bodies: '' });
+            // Get only last 10 emails (newest)
+            const lastTen = results.slice(-10);
+            console.log(`📬 Found ${results.length} total emails, fetching last 10`);
+
+            const fetch = imap.fetch(lastTen, { bodies: '' });
 
             fetch.on('message', (msg: any) => {
               msg.on('body', (stream: any) => {
@@ -189,7 +203,7 @@ class EmailInboxService {
   private async processEmail(userId: string, email: ParsedEmail): Promise<void> {
     try {
       // Check if email already exists
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseAdmin
         .from('emails_inbox')
         .select('id')
         .eq('message_id', email.messageId)
@@ -204,7 +218,7 @@ class EmailInboxService {
       const analysis = await this.analyzeEmailWithAI(email);
 
       // Save to inbox
-      const { data: inboxEmail, error } = await supabase
+      const { data: inboxEmail, error } = await supabaseAdmin
         .from('emails_inbox')
         .insert({
           user_id: userId,
@@ -326,7 +340,7 @@ Respond ONLY with valid JSON.`;
       const draft = JSON.parse(cleanResponse);
 
       // Save draft to database
-      await supabase.from('ai_email_drafts').insert({
+      await supabaseAdmin.from('ai_email_drafts').insert({
         user_id: userId,
         inbox_email_id: inboxEmailId,
         to_address: email.from.address,
@@ -350,7 +364,7 @@ Respond ONLY with valid JSON.`;
   async sendApprovedDraft(draftId: string, userId: string): Promise<boolean> {
     try {
       // Get draft
-      const { data: draft, error: draftError } = await supabase
+      const { data: draft, error: draftError } = await supabaseAdmin
         .from('ai_email_drafts')
         .select('*')
         .eq('id', draftId)
@@ -362,7 +376,7 @@ Respond ONLY with valid JSON.`;
       }
 
       // Get user's SMTP config
-      const { data: smtpConfigs } = await supabase
+      const { data: smtpConfigs } = await supabaseAdmin
         .from('user_email_configs')
         .select('*')
         .eq('user_id', userId)
@@ -399,7 +413,7 @@ Respond ONLY with valid JSON.`;
       });
 
       // Update draft status
-      await supabase
+      await supabaseAdmin
         .from('ai_email_drafts')
         .update({
           status: 'sent',
@@ -409,7 +423,7 @@ Respond ONLY with valid JSON.`;
         .eq('id', draftId);
 
       // Save to sent emails
-      await supabase.from('emails_sent').insert({
+      await supabaseAdmin.from('emails_sent').insert({
         user_id: userId,
         recipient: draft.to_address,
         subject: draft.subject,

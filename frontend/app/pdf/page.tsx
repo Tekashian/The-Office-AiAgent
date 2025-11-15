@@ -45,6 +45,9 @@ export default function PDFPage() {
   const [templateContent, setTemplateContent] = useState('');
   const [templateCategory, setTemplateCategory] = useState('');
   
+  // Preview Modal
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  
   // PDF Files
   const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
@@ -440,11 +443,7 @@ export default function PDFPage() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => {
-                    if (content) {
-                      alert(content.substring(0, 500) + (content.length > 500 ? '...' : ''));
-                    }
-                  }}
+                  onClick={() => setShowPreviewModal(true)}
                   disabled={!content}
                 >
                   <Eye className="mr-2 h-4 w-4" />
@@ -636,6 +635,44 @@ export default function PDFPage() {
             </Button>
             <Button onClick={handleSaveTemplate}>
               {editingTemplate ? 'Zaktualizuj' : 'Utwórz'} szablon
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Preview Modal */}
+      <Modal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        title={`Podgląd: ${title || 'Dokument PDF'}`}
+      >
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 max-h-[60vh] overflow-y-auto">
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">
+                {title}
+              </h2>
+              <div className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 font-mono text-sm">
+                {content}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreviewModal(false)}
+            >
+              Zamknij
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowPreviewModal(false);
+                handleGeneratePDF();
+              }}
+              disabled={generating}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Generuj PDF
             </Button>
           </div>
         </div>

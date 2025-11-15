@@ -1,8 +1,9 @@
 import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
-import { supabase } from '../config/supabase';
+import { supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';
 import nodemailer from 'nodemailer';
+import path from 'path';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ const router = Router();
  */
 router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { to, subject, body, config_name } = req.body;
+    const { to, subject, body, attachments } = req.body;
 
     // Validate required fields
     if (!to || !subject || !body) {
@@ -23,47 +24,54 @@ router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Re
       return;
     }
 
-    // Fetch user's email configuration
-    const { data: emailConfig, error: configError } = await supabase
-      .from('user_email_configs')
+    // Get user's IMAP config (we'll use it for SMTP - Gmail uses same credentials)
+    const { data: imapConfigs } = await supabaseAdmin
+      .from('user_imap_configs')
       .select('*')
       .eq('user_id', req.userId)
-      .eq('config_name', config_name || 'Default')
-      .single();
+      .eq('is_active', true)
+      .limit(1);
 
-    if (configError || !emailConfig) {
+    if (!imapConfigs || imapConfigs.length === 0) {
       res.status(404).json({ 
         error: 'Email configuration not found', 
-        message: 'Please configure your SMTP settings first' 
+        message: 'Please configure your IMAP/SMTP settings first' 
       });
       return;
     }
 
-    // Decrypt password
-    const decryptedPassword = decrypt(emailConfig.smtp_password);
+    const imapConfig = imapConfigs[0];
+    const decryptedPassword = decrypt(imapConfig.imap_password);
 
-    // Create transporter with user's configuration
+    // Use Gmail SMTP
     const transporter = nodemailer.createTransport({
-      host: emailConfig.smtp_host,
-      port: emailConfig.smtp_port,
-      secure: emailConfig.smtp_port === 465,
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // Use STARTTLS
       auth: {
-        user: emailConfig.smtp_user,
+        user: imapConfig.imap_user,
         pass: decryptedPassword
       }
     });
 
+    // Prepare attachments
+    const mailAttachments = attachments?.map((att: any) => ({
+      filename: att.filename,
+      path: att.file_path
+    })) || [];
+
     // Send email
     const info = await transporter.sendMail({
-      from: emailConfig.smtp_user,
+      from: imapConfig.imap_user,
       to: Array.isArray(to) ? to.join(', ') : to,
       subject,
       text: body,
-      html: body
+      html: body.replace(/\n/g, '<br>'),
+      attachments: mailAttachments
     });
 
     // Log email to database
-    const { error: logError } = await supabase
+    const { data: sentEmail, error: logError } = await supabaseAdmin
       .from('emails_sent')
       .insert({
         user_id: req.userId,
@@ -71,11 +79,25 @@ router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Re
         subject,
         body,
         status: 'sent',
-        message_id: info.messageId
-      });
+        message_id: info.messageId,
+        has_attachments: attachments && attachments.length > 0,
+        attachments_count: attachments?.length || 0
+      })
+      .select()
+      .single();
 
     if (logError) {
       console.error('Failed to log email:', logError);
+    }
+
+    // Link attachments to sent email
+    if (attachments && attachments.length > 0 && sentEmail) {
+      await Promise.all(attachments.map((att: any) =>
+        supabaseAdmin
+          .from('email_attachments')
+          .update({ email_sent_id: sentEmail.id })
+          .eq('id', att.id)
+      ));
     }
 
     res.json({ 
@@ -88,7 +110,7 @@ router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Re
 
     // Log failed email
     try {
-      await supabase
+      await supabaseAdmin
         .from('emails_sent')
         .insert({
           user_id: req.userId,
@@ -128,7 +150,7 @@ router.post('/send-bulk', authenticateUser, async (req: AuthenticatedRequest, re
     }
 
     // Fetch user's email configuration
-    const { data: emailConfig, error: configError } = await supabase
+    const { data: emailConfig, error: configError } = await supabaseAdmin
       .from('user_email_configs')
       .select('*')
       .eq('user_id', req.userId)
@@ -175,7 +197,7 @@ router.post('/send-bulk', authenticateUser, async (req: AuthenticatedRequest, re
         });
 
         // Log successful email
-        await supabase
+        await supabaseAdmin
           .from('emails_sent')
           .insert({
             user_id: req.userId,
@@ -191,7 +213,7 @@ router.post('/send-bulk', authenticateUser, async (req: AuthenticatedRequest, re
         console.error(`Failed to send email to ${email.to}:`, error);
         
         // Log failed email
-        await supabase
+        await supabaseAdmin
           .from('emails_sent')
           .insert({
             user_id: req.userId,
@@ -233,7 +255,7 @@ router.get('/history', authenticateUser, async (req: AuthenticatedRequest, res: 
   try {
     const { limit = 50, offset = 0 } = req.query;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('emails_sent')
       .select('*')
       .eq('user_id', req.userId)
@@ -245,7 +267,7 @@ router.get('/history', authenticateUser, async (req: AuthenticatedRequest, res: 
       return;
     }
 
-    res.json({ emails: data || [] });
+    res.json(data || []);
     return;
   } catch (error) {
     console.error('Email history error:', error);

@@ -133,7 +133,14 @@ ALTER TABLE ai_email_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_scan_logs ENABLE ROW LEVEL SECURITY;
 
 -- IMAP Configs policies
-CREATE POLICY "Users can manage own IMAP configs" ON user_imap_configs
+CREATE POLICY "Users can manage own IMAP configs" ON user_imap_configsinject.js:1 Port connected
+inject.js:1 Port connected
+forward-logs-shared.ts:95 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+forward-logs-shared.ts:95 [HMR] connected
+:3001/api/email-templates:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+:3001/api/email-templates/generate:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+generate:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Inbox policies

@@ -70,6 +70,7 @@ export default function EmailInboxPage() {
   const [stats, setStats] = useState({ unread: 0, urgent: 0, pending_drafts: 0 });
   const [editingDraft, setEditingDraft] = useState(false);
   const [editedBody, setEditedBody] = useState('');
+  const [generatingDraft, setGeneratingDraft] = useState(false);
   const [showImapModal, setShowImapModal] = useState(false);
   const [imapForm, setImapForm] = useState({
     imap_user: '',
@@ -209,6 +210,23 @@ export default function EmailInboxPage() {
       await loadData();
     } catch (error) {
       alert('Failed to reject draft');
+    }
+  };
+
+  const handleGenerateDraft = async () => {
+    if (!selectedEmail) return;
+    
+    setGeneratingDraft(true);
+    try {
+      const response = await apiClient.post(`/api/email-inbox/emails/${selectedEmail.id}/generate-draft`);
+      setSelectedDraft(response.data.draft);
+      setEditedBody(response.data.draft.body);
+      setEditingDraft(true); // Włącz tryb edycji od razu
+      alert('✅ AI draft generated successfully! You can now edit it.');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to generate draft');
+    } finally {
+      setGeneratingDraft(false);
     }
   };
 
@@ -447,6 +465,38 @@ export default function EmailInboxPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* AI Draft Response or Generate Button */}
+                {selectedEmail.ai_suggested_action === 'reply' && !selectedDraft && (
+                  <div className="border-t border-gray-200 dark:border-gray-800 pt-6">
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 rounded-lg p-6 text-center">
+                      <Sparkles className="h-12 w-12 text-indigo-600 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        AI Reply Available
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        This email requires a response. Generate an AI-powered professional reply.
+                      </p>
+                      <Button 
+                        onClick={handleGenerateDraft}
+                        disabled={generatingDraft}
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        {generatingDraft ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Generate AI Reply
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* AI Draft Response */}
                 {selectedDraft && selectedDraft.status !== 'sent' && (

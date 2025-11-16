@@ -17,6 +17,7 @@ import aiRoutes from './routes/aiRoutes';
 import userContextRoutes from './routes/userContextRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
+import searchRoutes from './routes/searchRoutes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -49,6 +50,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/user/context', userContextRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/search', searchRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

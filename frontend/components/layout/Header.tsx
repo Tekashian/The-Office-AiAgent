@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Bell, Search, User, ChevronDown, Mail, Shield, Calendar, Settings, LogOut, CheckCircle, XCircle, AlertCircle, FileText, Send, Trash2, Check } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Bell, Search, User, ChevronDown, Mail, Shield, Calendar, Settings, LogOut, CheckCircle, XCircle, AlertCircle, FileText, Send, Trash2, Check, Clock, Globe, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { getCurrentUser, signOut } from '@/lib/auth';
@@ -17,9 +17,22 @@ interface Notification {
   metadata?: any;
 }
 
+interface SearchResult {
+  type: 'task' | 'email' | 'document' | 'scraper';
+  id: string;
+  title: string;
+  description?: string;
+  date?: string;
+  metadata?: Record<string, any>;
+}
+
 export function Header() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [user, setUser] = useState<{ 
@@ -29,6 +42,7 @@ export function Header() {
     email_confirmed_at?: string;
   } | null>(null);
   const router = useRouter();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Load user data
@@ -54,11 +68,92 @@ export function Header() {
       if (showProfileDropdown && !target.closest('.profile-dropdown-container')) {
         setShowProfileDropdown(false);
       }
+      if (showSearchResults && !target.closest('.search-dropdown-container')) {
+        setShowSearchResults(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showNotifications, showProfileDropdown]);
+  }, [showNotifications, showProfileDropdown, showSearchResults]);
+
+  const performSearch = useCallback(async (query: string) => {
+    if (!query || query.trim().length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const response = await apiClient.post('/api/search', {
+        query: query.trim(),
+        limit: 10
+      });
+      setSearchResults(response.data.results || []);
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+
+    // Debounce search
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      performSearch(query);
+    }, 300);
+  };
+
+  const handleSearchResultClick = (result: SearchResult) => {
+    setShowSearchResults(false);
+    setSearchQuery('');
+    
+    // Navigate based on type
+    switch (result.type) {
+      case 'task':
+        router.push(`/tasks?id=${result.id}`);
+        break;
+      case 'email':
+        router.push(`/email?id=${result.id}`);
+        break;
+      case 'document':
+        router.push(`/pdf?id=${result.id}`);
+        break;
+      case 'scraper':
+        router.push(`/scraper?id=${result.id}`);
+        break;
+    }
+  };
+
+  const getResultIcon = (type: string) => {
+    switch (type) {
+      case 'task': return <Clock className="h-5 w-5 text-blue-500" />;
+      case 'email': return <Mail className="h-5 w-5 text-purple-500" />;
+      case 'document': return <FileText className="h-5 w-5 text-green-500" />;
+      case 'scraper': return <Globe className="h-5 w-5 text-orange-500" />;
+      default: return <Search className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  const getResultTypeLabel = (type: string) => {
+    switch (type) {
+      case 'task': return 'Zadanie';
+      case 'email': return 'Email';
+      case 'document': return 'Dokument';
+      case 'scraper': return 'Scraper';
+      default: return type;
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -144,13 +239,66 @@ export function Header() {
     <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:border-gray-800 dark:bg-gray-950/95">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex flex-1 items-center gap-4">
-          <div className="relative w-full max-w-md">
+          <div className="relative w-full max-w-md search-dropdown-container">
             <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
             <input
               type="search"
               placeholder="Szukaj zadań, emaili, dokumentów..."
+              value={searchQuery}
+              onChange={handleSearchChange}
               className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm placeholder-gray-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400"
             />
+
+            {/* Search Results Dropdown */}
+            {showSearchResults && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto">
+                {searchLoading ? (
+                  <div className="p-8 text-center">
+                    <Zap className="h-8 w-8 mx-auto mb-2 text-indigo-500 animate-pulse" />
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Szukam...</p>
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 dark:text-gray-500">
+                    <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Brak wyników dla "{searchQuery}"</p>
+                  </div>
+                ) : (
+                  <div>
+                    {searchResults.map((result) => (
+                      <button
+                        key={`${result.type}-${result.id}`}
+                        onClick={() => handleSearchResultClick(result)}
+                        className="w-full p-4 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-700 last:border-b-0 text-left transition-colors flex items-start gap-3"
+                      >
+                        <div className="mt-0.5">
+                          {getResultIcon(result.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                              {getResultTypeLabel(result.type)}
+                            </span>
+                            {result.date && (
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                {formatDate(result.date)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {result.title}
+                          </p>
+                          {result.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                              {result.description}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

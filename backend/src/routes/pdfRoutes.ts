@@ -391,7 +391,7 @@ router.post('/generate-structured', authenticateUser, async (req: AuthenticatedR
 
 /**
  * GET /api/pdf/list
- * Get user's PDF files
+ * Get user's PDF files (from database and Supabase Storage)
  */
 router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -399,27 +399,60 @@ router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Res
 
     console.log('📋 Fetching PDF list for user:', req.userId);
 
-    const { data, error } = await supabaseAdmin
+    // Fetch from database (legacy PDFs)
+    const { data: dbPdfs, error: dbError } = await supabaseAdmin
       .from('pdf_files')
       .select('id, filename, title, file_size, created_at')
       .eq('user_id', req.userId)
       .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
-    if (error) {
-      console.error('❌ Failed to fetch PDF files:', error);
-      res.status(500).json({ error: 'Failed to fetch PDF files', details: error.message });
-      return;
+    if (dbError) {
+      console.error('❌ Failed to fetch PDF files from database:', dbError);
     }
 
-    console.log('✅ Found PDFs:', data?.length || 0);
+    // Fetch from Supabase Storage (cron-generated PDFs)
+    const { data: storagePdfs, error: storageError } = await supabaseAdmin.storage
+      .from('generated-pdfs')
+      .list(req.userId, {
+        limit: Number(limit),
+        offset: Number(offset),
+        sortBy: { column: 'created_at', order: 'desc' }
+      });
 
-    const pdfs = (data || []).map(pdf => ({
+    if (storageError) {
+      console.error('❌ Failed to fetch PDFs from storage:', storageError);
+    }
+
+    console.log('✅ Found PDFs in database:', dbPdfs?.length || 0);
+    console.log('✅ Found PDFs in storage:', storagePdfs?.length || 0);
+
+    // Combine and format both sources
+    const dbPdfsList = (dbPdfs || []).map(pdf => ({
       ...pdf,
-      downloadUrl: `/api/pdf/download/${pdf.id}`
+      downloadUrl: `/api/pdf/download/${pdf.id}`,
+      source: 'database'
     }));
 
-    res.json({ pdfs });
+    const storagePdfsList = (storagePdfs || []).map(pdf => {
+      // Generate download URL
+      return {
+        id: pdf.id,
+        filename: pdf.name,
+        title: pdf.name.replace('.pdf', ''),
+        file_size: pdf.metadata?.size || 0,
+        created_at: pdf.created_at,
+        downloadUrl: `/api/pdf/download-storage/${req.userId}/${encodeURIComponent(pdf.name)}`,
+        source: 'storage'
+      };
+    });
+
+    // Merge and sort by date
+    const allPdfs = [...dbPdfsList, ...storagePdfsList].sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    res.json({ pdfs: allPdfs });
     return;
   } catch (error) {
     console.error('❌ List PDFs error:', error);
@@ -430,7 +463,7 @@ router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Res
 
 /**
  * GET /api/pdf/download/:id
- * Download a PDF file
+ * Download a PDF file from database
  */
 router.get('/download/:id', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -469,6 +502,47 @@ router.get('/download/:id', authenticateUser, async (req: AuthenticatedRequest, 
     return;
   } catch (error) {
     console.error('Download PDF error:', error);
+    res.status(500).json({ error: 'Failed to download PDF' });
+    return;
+  }
+});
+
+/**
+ * GET /api/pdf/download-storage/:userId/:filename
+ * Download a PDF file from Supabase Storage
+ */
+router.get('/download-storage/:userId/:filename', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { userId, filename } = req.params;
+    const filepath = `${userId}/${filename}`;
+    
+    console.log('📥 Storage download request:', filepath);
+    
+    // Verify user owns this file
+    if (userId !== req.userId) {
+      console.error('❌ Unauthorized access attempt');
+      res.status(403).json({ error: 'Unauthorized' });
+      return;
+    }
+    
+    // Generate signed URL (valid for 1 hour)
+    const { data: urlData, error: urlError } = await supabaseAdmin.storage
+      .from('generated-pdfs')
+      .createSignedUrl(filepath, 3600); // 1 hour
+    
+    if (urlError || !urlData) {
+      console.error('❌ Failed to generate signed URL:', urlError);
+      res.status(404).json({ error: 'PDF not found' });
+      return;
+    }
+    
+    console.log('✅ Redirecting to signed URL');
+    
+    // Redirect to signed URL
+    res.redirect(urlData.signedUrl);
+    return;
+  } catch (error) {
+    console.error('❌ Download storage PDF error:', error);
     res.status(500).json({ error: 'Failed to download PDF' });
     return;
   }

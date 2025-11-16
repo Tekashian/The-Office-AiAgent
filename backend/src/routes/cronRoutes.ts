@@ -120,7 +120,103 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
                   console.error('❌ No SMTP config found for user');
                 }
               } else if (task_type === 'pdf') {
-                console.log('📄 PDF generation task - not implemented yet');
+                // Generate PDF and upload to Supabase Storage
+                const pdfConfig = task_config as any;
+                const PDFDocument = (await import('pdfkit')).default;
+                const { Readable } = await import('stream');
+                
+                console.log('📄 Generating PDF:', pdfConfig.filename || 'document.pdf');
+                
+                // Create PDF in memory
+                const doc = new PDFDocument({
+                  size: 'A4',
+                  margins: { top: 50, bottom: 50, left: 50, right: 50 }
+                });
+                
+                const chunks: Buffer[] = [];
+                doc.on('data', (chunk) => chunks.push(chunk));
+                
+                // Add content to PDF
+                if (pdfConfig.title) {
+                  doc.fontSize(18).font('Helvetica-Bold').text(pdfConfig.title, { align: 'center' }).moveDown(2);
+                }
+                
+                doc.fontSize(12).font('Helvetica');
+                const lines = (pdfConfig.content || 'No content provided').split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    doc.text(line, { align: 'left', width: 495 });
+                  } else {
+                    doc.moveDown(0.5);
+                  }
+                }
+                
+                doc.end();
+                
+                // Wait for PDF generation to complete
+                await new Promise((resolve) => doc.on('end', resolve));
+                
+                const pdfBuffer = Buffer.concat(chunks);
+                const filename = pdfConfig.filename || `document_${Date.now()}.pdf`;
+                const filepath = `${req.userId}/${filename}`;
+                
+                // Upload to Supabase Storage
+                const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+                  .from('generated-pdfs')
+                  .upload(filepath, pdfBuffer, {
+                    contentType: 'application/pdf',
+                    upsert: true
+                  });
+                
+                if (uploadError) {
+                  console.error('❌ PDF upload failed:', uploadError);
+                } else {
+                  console.log('✅ PDF uploaded to Supabase Storage:', uploadData.path);
+                  
+                  // Generate signed URL (valid for 7 days)
+                  const { data: urlData } = await supabaseAdmin.storage
+                    .from('generated-pdfs')
+                    .createSignedUrl(filepath, 604800); // 7 days
+                  
+                  console.log('🔗 PDF URL:', urlData?.signedUrl);
+                  
+                  // Optionally send email with PDF link
+                  if (pdfConfig.send_email && pdfConfig.recipient) {
+                    const { data: imapConfigs } = await supabaseAdmin
+                      .from('user_imap_configs')
+                      .select('*')
+                      .eq('user_id', req.userId)
+                      .eq('is_active', true)
+                      .limit(1);
+                    
+                    if (imapConfigs && imapConfigs.length > 0) {
+                      const imapConfig = imapConfigs[0];
+                      const { decrypt } = await import('../utils/encryption');
+                      const decryptedPassword = decrypt(imapConfig.imap_password);
+                      
+                      const nodemailer = await import('nodemailer');
+                      const transporter = nodemailer.default.createTransport({
+                        host: 'smtp.gmail.com',
+                        port: 587,
+                        secure: false,
+                        auth: {
+                          user: imapConfig.imap_user,
+                          pass: decryptedPassword
+                        }
+                      });
+                      
+                      await transporter.sendMail({
+                        from: imapConfig.imap_user,
+                        to: pdfConfig.recipient,
+                        subject: pdfConfig.email_subject || `PDF: ${pdfConfig.title || filename}`,
+                        text: `Your PDF is ready!\n\nDownload: ${urlData?.signedUrl}\n\n(Link valid for 7 days)`,
+                        html: `<p>Your PDF is ready!</p><p><a href="${urlData?.signedUrl}">Download ${filename}</a></p><p><small>Link valid for 7 days</small></p>`
+                      });
+                      
+                      console.log('📧 PDF link sent via email to', pdfConfig.recipient);
+                    }
+                  }
+                }
               } else if (task_type === 'scraping') {
                 console.log('🕷️ Web scraping task - not implemented yet');
               } else {

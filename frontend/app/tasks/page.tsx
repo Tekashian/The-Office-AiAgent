@@ -196,7 +196,7 @@ Typ zadania: ${taskTypes.find(t => t.value === jobType)?.label}
 Zwróć TYLKO poprawny JSON bez dodatkowych komentarzy. Przykłady:
 
 Email: {"recipient": "example@domain.com", "subject": "Temat", "body": "Treść wiadomości"}
-PDF: {"template_id": "uuid", "data": {"title": "Tytuł", "content": "Zawartość"}}
+PDF: {"filename": "raport.pdf", "title": "Tytuł Dokumentu", "content": "Treść dokumentu PDF...", "send_email": false, "recipient": "optional@email.com", "email_subject": "Twój PDF jest gotowy"}
 Scraping: {"url": "https://example.com", "selector": ".class", "data_fields": ["field1", "field2"]}
 Custom: {"action": "custom_action", "parameters": {}}`;
 

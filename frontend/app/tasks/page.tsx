@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getAccessToken, getCurrentUser } from '@/lib/auth';
+import { useSearchParams } from 'next/navigation';
 
 interface CronJob {
   id: string;
@@ -27,6 +28,9 @@ interface CronJob {
 
 export default function TasksPage() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('id');
+  
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [jobs, setJobs] = useState<CronJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,6 +161,22 @@ export default function TasksPage() {
     };
     checkAuth();
   }, [fetchJobs, showToast]);
+
+  // Scroll to highlighted task
+  useEffect(() => {
+    if (highlightId && jobs.length > 0 && !loading) {
+      setTimeout(() => {
+        const element = document.getElementById(`task-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-4', 'ring-indigo-500', 'ring-offset-2');
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-indigo-500', 'ring-offset-2');
+          }, 3000);
+        }
+      }, 300);
+    }
+  }, [highlightId, jobs, loading]);
 
   const openModal = (job?: CronJob) => {
     if (job) {
@@ -415,8 +435,9 @@ Custom: {"action": "custom_action", "parameters": {}}`;
           </Card>
         ) : (
           jobs.map((job) => (
-            <Card key={job.id}>
-              <CardContent className="p-4">
+            <div key={job.id} id={`task-${job.id}`} className="transition-all duration-300 rounded-lg">
+              <Card>
+                <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-3 flex-1">
                     <div className="p-2 bg-primary-100 dark:bg-primary-900 rounded-lg">
@@ -473,6 +494,7 @@ Custom: {"action": "custom_action", "parameters": {}}`;
                 </div>
               </CardContent>
             </Card>
+            </div>
           ))
         )}
       </div>

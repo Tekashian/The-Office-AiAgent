@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { getAccessToken, getCurrentUser } from '@/lib/auth';
+import { useSearchParams } from 'next/navigation';
 
 interface PDFTemplate {
   id: string;
@@ -31,6 +32,9 @@ interface PDFFile {
 
 export default function PDFPage() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('id');
+  
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -138,6 +142,22 @@ export default function PDFPage() {
     };
     checkAuth();
   }, [fetchTemplates, fetchPDFFiles, showToast]);
+
+  // Scroll to highlighted PDF when loaded
+  useEffect(() => {
+    if (highlightId && pdfFiles.length > 0 && !loadingFiles) {
+      setTimeout(() => {
+        const element = document.getElementById(`pdf-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-4', 'ring-indigo-500', 'ring-offset-2');
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-indigo-500', 'ring-offset-2');
+          }, 3000);
+        }
+      }, 300);
+    }
+  }, [highlightId, pdfFiles, loadingFiles]);
 
   const handleGenerateAIContent = async () => {
     if (!templateCategory) {
@@ -528,7 +548,8 @@ export default function PDFPage() {
                 pdfFiles.slice(0, 5).map((pdf) => (
                   <div
                     key={pdf.id}
-                    className="rounded-lg border border-gray-200 p-3 dark:border-gray-800"
+                    id={`pdf-${pdf.id}`}
+                    className="rounded-lg border border-gray-200 p-3 dark:border-gray-800 transition-all duration-300"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">

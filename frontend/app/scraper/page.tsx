@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { apiClient } from '@/lib/api';
+import { useSearchParams } from 'next/navigation';
 
 interface ScrapeJob {
   id: string;
@@ -48,6 +49,9 @@ interface ScraperHistory {
 }
 
 export default function ScraperPage() {
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('id');
+  
   const [jobs, setJobs] = useState<ScrapeJob[]>([]);
   const [selectedJob, setSelectedJob] = useState<ScrapeJob | null>(null);
   const [history, setHistory] = useState<ScraperHistory[]>([]);
@@ -72,6 +76,22 @@ export default function ScraperPage() {
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  // Scroll to highlighted scraper
+  useEffect(() => {
+    if (highlightId && jobs.length > 0 && !loading) {
+      setTimeout(() => {
+        const element = document.getElementById(`scraper-${highlightId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-4', 'ring-indigo-500', 'ring-offset-2');
+          setTimeout(() => {
+            element.classList.remove('ring-4', 'ring-indigo-500', 'ring-offset-2');
+          }, 3000);
+        }
+      }, 300);
+    }
+  }, [highlightId, jobs, loading]);
 
   const fetchJobs = async () => {
     try {
@@ -331,7 +351,7 @@ export default function ScraperPage() {
                 <select 
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 focus:border-primary-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                   value={formData.schedule || ''}
-                  onChange={(e) => setFormData({...formData, schedule: e.target.value || undefined})}
+                  onChange={(e) => setFormData({...formData, schedule: e.target.value || ''})}
                 >
                   <option value="">Jednorazowo (ręcznie)</option>
                   <option value="0 */6 * * *">Co 6 godzin</option>
@@ -405,8 +425,9 @@ export default function ScraperPage() {
             const StatusIcon = statusConfig.icon;
             
             return (
-              <Card key={job.id}>
-                <CardContent className="p-6">
+              <div key={job.id} id={`scraper-${job.id}`} className="transition-all duration-300 rounded-lg">
+                <Card>
+                  <CardContent className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -511,6 +532,7 @@ export default function ScraperPage() {
                   )}
                 </CardContent>
               </Card>
+              </div>
             );
           })}
         </div>

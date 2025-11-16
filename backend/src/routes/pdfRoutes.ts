@@ -201,13 +201,14 @@ router.post('/templates/:id/use', authenticateUser, async (req: AuthenticatedReq
 router.post('/templates/generate', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { category, context } = req.body;
+    const userId = req.userId;
 
     if (!category) {
       res.status(400).json({ error: 'Category is required' });
       return;
     }
 
-    console.log(`🤖 Generating PDF template for category: ${category}`);
+    console.log(`🤖 Generating PDF template for category: ${category}, user: ${userId}`);
     console.log(`📝 Context:`, context);
     
     if (typeof aiService.generatePDFContent !== 'function') {
@@ -216,9 +217,10 @@ router.post('/templates/generate', authenticateUser, async (req: AuthenticatedRe
       return;
     }
     
-    const content = await aiService.generatePDFContent(category, context);
+    // Pass userId to enable user context
+    const content = await aiService.generatePDFContent(category, context, userId);
     
-    console.log('✅ PDF template generated successfully');
+    console.log('✅ PDF template generated successfully with user context');
     console.log('📄 Content length:', content.length);
     
     res.json({

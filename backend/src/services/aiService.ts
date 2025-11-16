@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { AIRequest, AIResponse } from '../types';
+import { supabaseAdmin } from '../config/supabase';
 
 export class AIService {
   private apiKey: string;
@@ -16,6 +17,85 @@ export class AIService {
     console.log('  - API Key:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'NOT SET');
     console.log('  - API URL:', this.apiUrl || 'NOT SET');
     console.log('  - Model:', this.model);
+  }
+
+  /**
+   * Get user context from database and format it for AI prompts
+   */
+  async getUserContext(userId: string): Promise<string> {
+    try {
+      const { data: profile, error } = await supabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error || !profile) {
+        console.log('⚠️ No user context found for:', userId);
+        return '';
+      }
+
+      const contextParts: string[] = [];
+
+      if (profile.full_name) {
+        contextParts.push(`Użytkownik: ${profile.full_name}`);
+      }
+
+      if (profile.job_title) {
+        contextParts.push(`Stanowisko: ${profile.job_title}`);
+      }
+
+      if (profile.department) {
+        contextParts.push(`Dział: ${profile.department}`);
+      }
+
+      if (profile.company) {
+        contextParts.push(`Firma: ${profile.company}`);
+      }
+
+      if (profile.company_description) {
+        contextParts.push(`O firmie: ${profile.company_description}`);
+      }
+
+      if (profile.work_description) {
+        contextParts.push(`Obowiązki zawodowe: ${profile.work_description}`);
+      }
+
+      if (profile.ai_context_notes) {
+        contextParts.push(`Preferencje użytkownika: ${profile.ai_context_notes}`);
+      }
+
+      // Dodaj preferencje komunikacji
+      if (profile.preferences) {
+        const prefs = profile.preferences as any;
+        
+        if (prefs.communication_tone) {
+          const toneMap: any = {
+            'professional': 'profesjonalny i formalny',
+            'friendly-professional': 'przyjazny ale profesjonalny',
+            'casual': 'swobodny i nieformalny',
+            'formal': 'bardzo formalny',
+            'friendly': 'przyjazny i ciepły'
+          };
+          contextParts.push(`Preferowany ton: ${toneMap[prefs.communication_tone] || prefs.communication_tone}`);
+        }
+
+        if (prefs.language) {
+          contextParts.push(`Język: ${prefs.language === 'pl' ? 'Polski' : prefs.language}`);
+        }
+      }
+
+      if (contextParts.length === 0) {
+        return '';
+      }
+
+      const contextString = `\n\n=== KONTEKST UŻYTKOWNIKA ===\n${contextParts.join('\n')}\n=== KONIEC KONTEKSTU ===\n\n`;
+      console.log('✅ User context loaded:', contextParts.length, 'fields');
+      return contextString;
+    } catch (error) {
+      console.error('❌ Error loading user context:', error);
+      return '';
+    }
   }
 
   /**
@@ -153,11 +233,21 @@ export class AIService {
   }
 
   /**
-   * Generate email template based on category
+   * Generate email template based on category with user context
    */
-  async generateEmailTemplate(category: string, additionalContext?: string): Promise<{ subject: string; body: string }> {
+  async generateEmailTemplate(
+    category: string, 
+    additionalContext?: string,
+    userId?: string
+  ): Promise<{ subject: string; body: string }> {
     try {
-      const prompt = `Generate a SHORT professional email template for the category: "${category}".
+      // Load user context if userId provided
+      let userContext = '';
+      if (userId) {
+        userContext = await this.getUserContext(userId);
+      }
+
+      const prompt = `${userContext}Generate a SHORT professional email template for the category: "${category}".
 ${additionalContext ? `Additional context: ${additionalContext}` : ''}
 
 Requirements:
@@ -165,6 +255,7 @@ Requirements:
 - Create a SHORT professional email body in Polish (max 3-4 sentences)
 - Use placeholders like {{name}}, {{company}}, {{date}} where appropriate
 - Keep it VERY concise and professional
+${userContext ? '- Use the USER CONTEXT above to personalize the tone and style' : ''}
 
 Return ONLY a JSON object with this EXACT structure (NO markdown, NO code blocks, NO extra text):
 {
@@ -217,11 +308,21 @@ CRITICAL: Response must be VALID JSON ONLY. Keep body SHORT (max 150 words).`;
   }
 
   /**
-   * Generate PDF content based on category
+   * Generate PDF content based on category with user context
    */
-  async generatePDFContent(category: string, additionalContext?: string): Promise<string> {
+  async generatePDFContent(
+    category: string, 
+    additionalContext?: string,
+    userId?: string
+  ): Promise<string> {
     try {
-      const prompt = `Generate professional PDF document content for the category: "${category}".
+      // Load user context if userId provided
+      let userContext = '';
+      if (userId) {
+        userContext = await this.getUserContext(userId);
+      }
+
+      const prompt = `${userContext}Generate professional PDF document content for the category: "${category}".
 ${additionalContext ? `Additional context: ${additionalContext}` : ''}
 
 Requirements:
@@ -230,6 +331,7 @@ Requirements:
 - Use placeholders like {{company_name}}, {{date}}, {{client_name}} where appropriate
 - Make it professional and well-structured
 - Keep it concise (max 500 words)
+${userContext ? '- Use the USER CONTEXT above to personalize the content and tone' : ''}
 
 Category-specific guidelines:
 - Faktura VAT: Include header, company details, items table, total, payment info

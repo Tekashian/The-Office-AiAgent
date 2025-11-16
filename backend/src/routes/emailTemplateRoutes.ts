@@ -223,17 +223,19 @@ router.post('/:id/use', authenticateUser, async (req: AuthenticatedRequest, res:
 router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { category, context } = req.body;
+    const userId = req.userId;
 
     if (!category) {
       res.status(400).json({ error: 'Category is required' });
       return;
     }
 
-    console.log(`🤖 Generating email template for category: ${category}`);
+    console.log(`🤖 Generating email template for category: ${category}, user: ${userId}`);
     
-    const template = await aiService.generateEmailTemplate(category, context);
+    // Pass userId to enable user context
+    const template = await aiService.generateEmailTemplate(category, context, userId);
     
-    console.log('✅ Template generated successfully');
+    console.log('✅ Template generated successfully with user context');
     
     res.json({
       subject: template.subject,

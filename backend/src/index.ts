@@ -14,6 +14,9 @@ import pdfRoutes from './routes/pdfRoutes';
 import scraperRoutes from './routes/scraperRoutes';
 import cronRoutes from './routes/cronRoutes';
 import aiRoutes from './routes/aiRoutes';
+import userContextRoutes from './routes/userContextRoutes';
+import notificationRoutes from './routes/notificationRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3001;
@@ -43,6 +46,9 @@ app.use('/api/pdf', pdfRoutes);
 app.use('/api/scraper', scraperRoutes);
 app.use('/api/cron', cronRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/user/context', userContextRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

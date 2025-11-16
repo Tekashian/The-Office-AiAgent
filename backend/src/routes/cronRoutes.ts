@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { supabaseAdmin } from '../config/supabase';
 import { CronService } from '../services/cronService';
+import { createNotification } from './notificationRoutes';
 
 const router = Router();
 const cronService = new CronService();
@@ -116,8 +117,36 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
                       has_attachments: false,
                       attachments_count: 0
                     });
+
+                  // Create notification
+                  await createNotification(
+                    req.userId!,
+                    'email_sent',
+                    `Email wysłany: ${emailConfig.subject}`,
+                    `Email został wysłany do ${emailConfig.recipient}`,
+                    {
+                      recipient: emailConfig.recipient,
+                      subject: emailConfig.subject,
+                      message_id: info.messageId,
+                      cron_job_id: data.id,
+                      cron_job_name: name
+                    }
+                  );
                 } else {
                   console.error('❌ No SMTP config found for user');
+                  
+                  // Create error notification
+                  await createNotification(
+                    req.userId!,
+                    'task_failed',
+                    `Błąd wysyłki email: ${name}`,
+                    'Nie znaleziono konfiguracji SMTP. Skonfiguruj email w ustawieniach.',
+                    {
+                      cron_job_id: data.id,
+                      cron_job_name: name,
+                      error: 'No SMTP config found'
+                    }
+                  );
                 }
               } else if (task_type === 'pdf') {
                 // Generate PDF and upload to Supabase Storage
@@ -180,6 +209,22 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
                   
                   console.log('🔗 PDF URL:', urlData?.signedUrl);
                   
+                  // Create PDF generated notification
+                  await createNotification(
+                    req.userId!,
+                    'pdf_generated',
+                    `PDF wygenerowany: ${pdfConfig.title || filename}`,
+                    `Dokument został utworzony i zapisany w chmurze.`,
+                    {
+                      filename: filename,
+                      title: pdfConfig.title,
+                      download_url: urlData?.signedUrl,
+                      cron_job_id: data.id,
+                      cron_job_name: name,
+                      file_size: pdfBuffer.length
+                    }
+                  );
+                  
                   // Optionally send email with PDF link
                   if (pdfConfig.send_email && pdfConfig.recipient) {
                     const { data: imapConfigs } = await supabaseAdmin
@@ -214,16 +259,68 @@ router.post('/create', authenticateUser, async (req: AuthenticatedRequest, res: 
                       });
                       
                       console.log('📧 PDF link sent via email to', pdfConfig.recipient);
+                      
+                      // Create email sent notification
+                      await createNotification(
+                        req.userId!,
+                        'email_sent',
+                        `Link do PDF wysłany`,
+                        `Email z linkiem do "${pdfConfig.title || filename}" został wysłany do ${pdfConfig.recipient}`,
+                        {
+                          recipient: pdfConfig.recipient,
+                          pdf_filename: filename,
+                          cron_job_id: data.id
+                        }
+                      );
                     }
                   }
                 }
               } else if (task_type === 'scraping') {
                 console.log('🕷️ Web scraping task - not implemented yet');
+                
+                // Create notification for not implemented task
+                await createNotification(
+                  req.userId!,
+                  'info',
+                  `Zadanie scraping: ${name}`,
+                  'Funkcja web scraping nie jest jeszcze zaimplementowana.',
+                  {
+                    cron_job_id: data.id,
+                    cron_job_name: name
+                  }
+                );
               } else {
                 console.log('🔧 Custom task execution');
+                
+                // Create notification for custom task
+                await createNotification(
+                  req.userId!,
+                  'task_completed',
+                  `Zadanie wykonane: ${name}`,
+                  'Niestandardowe zadanie zostało uruchomione.',
+                  {
+                    cron_job_id: data.id,
+                    cron_job_name: name,
+                    task_type: task_type
+                  }
+                );
               }
             } catch (taskError) {
               console.error('❌ Task execution failed:', taskError);
+              
+              // Create error notification
+              await createNotification(
+                req.userId!,
+                'task_failed',
+                `Błąd zadania: ${name}`,
+                `Zadanie nie powiodło się: ${taskError instanceof Error ? taskError.message : 'Unknown error'}`,
+                {
+                  cron_job_id: data.id,
+                  cron_job_name: name,
+                  error: taskError instanceof Error ? taskError.message : String(taskError),
+                  task_type: task_type
+                }
+              );
             }
 
             // Update status back to active

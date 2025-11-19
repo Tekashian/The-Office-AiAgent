@@ -349,11 +349,62 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
         enabled: true,
         task: async () => {
           // Execute based on task type
-          console.log(`Executing cron job: ${params.name}`);
+          console.log(`🕐 Executing cron job: ${params.name} (${params.task_type})`);
+
+          try {
+            let result = '';
+
+            // Execute appropriate action based on task type
+            switch (params.task_type) {
+              case 'email':
+                console.log('📧 Sending scheduled email...');
+                result = await this.executeSendEmail(params.task_config, userId);
+                break;
+
+              case 'pdf':
+                console.log('📄 Generating scheduled PDF...');
+                result = await this.executeGeneratePDF(params.task_config, userId);
+                break;
+
+              case 'scraper':
+                console.log('🕷️ Running scheduled scraper...');
+                result = await this.executeScrapeWebsite(params.task_config, userId);
+                break;
+
+              default:
+                console.error(`❌ Unknown task type: ${params.task_type}`);
+                result = `Unknown task type: ${params.task_type}`;
+            }
+
+            // Update status in database
+            await supabase
+              .from('cron_jobs')
+              .update({
+                status: 'completed',
+                last_run: new Date().toISOString(),
+                last_result: result,
+              })
+              .eq('id', data.id);
+
+            console.log(`✅ Cron job completed: ${params.name}`);
+            console.log(`Result: ${result.substring(0, 100)}...`);
+          } catch (error) {
+            console.error(`❌ Cron job failed: ${params.name}`, error);
+
+            // Save error to database
+            await supabase
+              .from('cron_jobs')
+              .update({
+                status: 'failed',
+                last_run: new Date().toISOString(),
+                last_error: error instanceof Error ? error.message : 'Unknown error',
+              })
+              .eq('id', data.id);
+          }
         },
       });
 
-      return `✅ Scheduled task created: ${params.name}\nSchedule: ${params.schedule}\nTask will run automatically according to the schedule.`;
+      return `✅ Scheduled task created: ${params.name}\nSchedule: ${params.schedule}\nType: ${params.task_type}\nTask will run automatically according to the schedule.`;
     } catch (error) {
       console.error('Cron job execution error:', error);
       return `❌ Failed to create scheduled task: ${error instanceof Error ? error.message : 'Unknown error'}`;

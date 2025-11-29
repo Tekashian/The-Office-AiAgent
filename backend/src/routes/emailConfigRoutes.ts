@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { encrypt, decrypt } from '../utils/encryption';
 
 const router = Router();
@@ -11,7 +11,7 @@ const router = Router();
  */
 router.get('/', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('user_email_configs')
       .select('id, config_name, smtp_host, smtp_port, smtp_user, created_at, updated_at')
       .eq('user_id', req.userId)
@@ -52,7 +52,7 @@ router.post('/', authenticateUser, async (req: AuthenticatedRequest, res: Respon
     const encryptedPassword = encrypt(smtp_password);
 
     // Insert or update email configuration
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('user_email_configs')
       .upsert({
         user_id: req.userId,
@@ -94,7 +94,7 @@ router.delete('/:id', authenticateUser, async (req: AuthenticatedRequest, res: R
   try {
     const { id } = req.params;
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('user_email_configs')
       .delete()
       .eq('id', id)
@@ -123,7 +123,7 @@ router.post('/test', authenticateUser, async (req: AuthenticatedRequest, res: Re
     const { config_name } = req.body;
 
     // Fetch email configuration
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('user_email_configs')
       .select('*')
       .eq('user_id', req.userId)

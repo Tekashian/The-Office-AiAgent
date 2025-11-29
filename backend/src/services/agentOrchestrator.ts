@@ -2,7 +2,7 @@ import aiService from './aiService';
 import pdfService from './pdfService';
 import scraperService from './scraperService';
 import cronService from './cronService';
-import { supabase } from '../config/supabase';
+import { supabase, supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';
 
 /**
@@ -183,7 +183,7 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
   }
 
   /**
-   * Execute email sending
+   * Execute email sending - uses IMAP configuration
    */
   private async executeSendEmail(params: any, userId?: string): Promise<string> {
     if (!userId) {
@@ -191,40 +191,65 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
     }
 
     try {
-      // Get user's email config
-      const { data: configs, error } = await supabase
-        .from('user_email_configs')
+      console.log('📧 Attempting to send email using IMAP config...');
+      console.log('🔑 User ID:', userId);
+      
+      // Get user's IMAP config (Gmail uses same credentials for SMTP)
+      // Use supabaseAdmin to bypass RLS (same as emailInboxService)
+      const { data: imapConfigs, error } = await supabaseAdmin
+        .from('user_imap_configs')
         .select('*')
         .eq('user_id', userId)
+        .eq('is_active', true)
         .limit(1);
 
-      if (error || !configs || configs.length === 0) {
-        return 'No email configuration found. Please configure your SMTP settings in Settings > Email first.';
+      console.log('📊 Query result:', { 
+        error: error?.message, 
+        configsCount: imapConfigs?.length || 0,
+        configs: imapConfigs 
+      });
+
+      if (error || !imapConfigs || imapConfigs.length === 0) {
+        console.log('❌ No IMAP configuration found for user:', userId);
+        
+        // Debug: Check if there are ANY configs in the table
+        const { data: allConfigs } = await supabaseAdmin
+          .from('user_imap_configs')
+          .select('user_id, imap_user, is_active')
+          .limit(5);
+        
+        console.log('🔍 All IMAP configs in database:', allConfigs);
+        
+        return 'It looks like your email couldn\'t be sent because there\'s no email configuration set up yet. Please configure your IMAP settings in AI Email Inbox to send emails.';
       }
 
-      const config = configs[0];
-      const decryptedPassword = decrypt(config.smtp_password);
+      const imap = imapConfigs[0];
+      const decryptedPassword = decrypt(imap.imap_password);
 
-      // Create custom transporter for this user
+      console.log('📤 Sending email via Gmail SMTP using IMAP credentials...');
+      
+      // Use Gmail SMTP with IMAP credentials
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({
-        host: config.smtp_host,
-        port: config.smtp_port,
-        secure: config.smtp_port === 465,
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
         auth: {
-          user: config.smtp_user,
+          user: imap.imap_user,
           pass: decryptedPassword,
         },
       });
 
       // Send email
       const info = await transporter.sendMail({
-        from: config.smtp_user,
+        from: imap.imap_user,
         to: Array.isArray(params.to) ? params.to.join(', ') : params.to,
         subject: params.subject,
         text: params.body,
         html: `<p>${params.body}</p>`,
       });
+
+      console.log('✅ Email sent successfully:', info.messageId);
 
       // Save to database
       await supabase.from('emails_sent').insert({
@@ -236,10 +261,10 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
         message_id: info.messageId,
       });
 
-      return `✅ Email sent successfully to ${Array.isArray(params.to) ? params.to.join(', ') : params.to}! Message ID: ${info.messageId}`;
+      return `✅ Email sent successfully to ${Array.isArray(params.to) ? params.to.join(', ') : params.to}!`;
     } catch (error) {
       console.error('Email execution error:', error);
-      return `❌ Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      return `❌ Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure you\'ve configured your email in AI Email Inbox.`;
     }
   }
 
@@ -428,18 +453,24 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
    */
   async processMessage(message: string, userId?: string, conversationHistory?: any[]): Promise<string> {
     try {
+      console.log('🔍 Processing message:', { message, userId });
+      
       // First, check if it's a simple conversation or needs tool execution
       const action = await this.analyzeIntent(message, userId);
 
       console.log('🤖 Agent decision:', action);
 
       if (action.tool === 'conversation') {
+        console.log('💬 Tool is conversation, using AI chat...');
         // Just have AI respond naturally
         return await aiService.chat(message, conversationHistory);
       }
 
+      console.log('🔧 Executing action:', action.tool);
       // Execute the action
       const result = await this.executeAction(action, userId);
+      
+      console.log('✅ Action result:', result);
       
       // Have AI formulate a natural response
       const naturalResponse = await aiService.chat(

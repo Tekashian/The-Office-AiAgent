@@ -7,7 +7,6 @@ import cors from 'cors';
 import { errorHandler } from './middleware/errorHandler';
 import agentRoutes from './routes/agentRoutes';
 import emailRoutes from './routes/emailRoutes';
-import emailConfigRoutes from './routes/emailConfigRoutes';
 import emailInboxRoutes from './routes/emailInboxRoutes';
 import emailTemplateRoutes from './routes/emailTemplateRoutes';
 import pdfRoutes from './routes/pdfRoutes';
@@ -40,7 +39,6 @@ app.get('/health', (_req, res) => {
 // API Routes
 app.use('/api/agent', agentRoutes);
 app.use('/api/email', emailRoutes);
-app.use('/api/email-config', emailConfigRoutes);
 app.use('/api/email-inbox', emailInboxRoutes);
 app.use('/api/email-templates', emailTemplateRoutes);
 app.use('/api/pdf', pdfRoutes);

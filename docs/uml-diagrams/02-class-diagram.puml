@@ -1,14 +1,45 @@
+
+
 @startuml Office-AI-Agent-Class-Diagram
 title The Office AI Agent - Class Diagram
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
-skinparam BackgroundColor FFFFFF
+skinparam BackgroundColor #FFFFFF
 skinparam shadowing false
+skinparam classBorderColor #333333
+skinparam classBackgroundColor #FAFAFA
+skinparam packageBorderColor #888888
+skinparam packageBackgroundColor #F5F5F5
+skinparam noteBackgroundColor #FFF9C4
+skinparam noteBorderColor #FBC02D
+
+' Kolory dla różnych sekcji
+skinparam package<<Frame>>BackgroundColor #E3F2FD
+skinparam package<<Database>>BackgroundColor #E8F5E9
+skinparam package<<Folder>>BackgroundColor #F3E5F5
+skinparam package<<Cloud>>BackgroundColor #FFF3E0
+skinparam class<<Service>>BackgroundColor #FFFDE7
+skinparam class<<Type>>BackgroundColor #E3F2FD
+skinparam class<<Utility>>BackgroundColor #F3E5F5
+skinparam class<<Database>>BackgroundColor #E8F5E9
+skinparam class<<Cloud>>BackgroundColor #FFF3E0
+
+' Kolory strzałek dla różnych typów relacji
+skinparam classAssociationArrowColor #1976D2
+skinparam classAssociationArrowThickness 2
+skinparam classAggregationArrowColor #388E3C
+skinparam classAggregationArrowThickness 2
+skinparam classCompositionArrowColor #FBC02D
+skinparam classCompositionArrowThickness 2
+skinparam classDependencyArrowColor #8E24AA
+skinparam classDependencyArrowThickness 2
+skinparam classGeneralizationArrowColor #616161
+skinparam classGeneralizationArrowThickness 2
 
 ' ============ TYPE DEFINITIONS ============
 
-package "Type Definitions" <<Frame>> {
-    enum TaskType {
+package "Type Definitions" <<Frame>> #E3F2FD {
+    enum TaskType <<Type>> #BBDEFB {
         EMAIL
         PDF_GENERATION
         WEB_SCRAPING
@@ -16,7 +47,7 @@ package "Type Definitions" <<Frame>> {
         AI_REQUEST
     }
     
-    enum TaskStatus {
+    enum TaskStatus <<Type>> #BBDEFB {
         PENDING
         IN_PROGRESS
         COMPLETED
@@ -24,14 +55,14 @@ package "Type Definitions" <<Frame>> {
         CANCELLED
     }
     
-    enum Priority {
+    enum Priority <<Type>> #BBDEFB {
         LOW
         MEDIUM
         HIGH
         URGENT
     }
     
-    class AgentTask {
+    class AgentTask <<Type>> #E3F2FD {
         +id: string
         +type: TaskType
         +description: string
@@ -44,7 +75,7 @@ package "Type Definitions" <<Frame>> {
         +error?: string
     }
     
-    class EmailConfig {
+    class EmailConfig <<Type>> #E3F2FD {
         +to: string | string[]
         +subject: string
         +text?: string
@@ -52,26 +83,26 @@ package "Type Definitions" <<Frame>> {
         +attachments?: EmailAttachment[]
     }
     
-    class EmailAttachment {
+    class EmailAttachment <<Type>> #E3F2FD {
         +filename: string
         +content?: Buffer
         +path?: string
     }
     
-    class PDFGenerationOptions {
+    class PDFGenerationOptions <<Type>> #E3F2FD {
         +title?: string
         +author?: string
         +subject?: string
         +outputPath?: string
     }
     
-    class ScrapingConfig {
+    class ScrapingConfig <<Type>> #E3F2FD {
         +url: string
         +selectors?: Map<string, string>
         +waitFor?: number
     }
     
-    class AIRequest {
+    class AIRequest <<Type>> #E3F2FD {
         +prompt: string
         +context?: any
         +model?: string
@@ -79,13 +110,13 @@ package "Type Definitions" <<Frame>> {
         +maxTokens?: number
     }
     
-    class AIResponse {
+    class AIResponse <<Type>> #E3F2FD {
         +content: string
         +model: string
         +tokensUsed?: number
     }
     
-    class CronJobConfig {
+    class CronJobConfig <<Type>> #E3F2FD {
         +name: string
         +schedule: string
         +task: () => Promise<void>
@@ -95,9 +126,9 @@ package "Type Definitions" <<Frame>> {
 
 ' ============ SERVICE CLASSES ============
 
-package "Services Layer" <<Database>> {
+package "Services Layer" <<Database>> #E8F5E9 {
     
-    class AIService {
+    class AIService <<Service>> #FFFDE7 {
         -apiKey: string
         -apiUrl: string
         -model: string
@@ -111,7 +142,7 @@ package "Services Layer" <<Database>> {
         +generatePDFContent(category: string, additionalContext?: string, userId?: string): Promise<string>
     }
     
-    class AgentOrchestrator {
+    class AgentOrchestrator <<Service>> #FFFDE7 {
         -tools: Tool[]
         
         -getSystemPrompt(): string
@@ -125,19 +156,19 @@ package "Services Layer" <<Database>> {
         +processMessage(message: string, userId?: string, conversationHistory?: any[]): Promise<string>
     }
     
-    class Tool {
+    class Tool <<Type>> #E3F2FD {
         +name: string
         +description: string
         +parameters: any
     }
     
-    class AgentAction {
+    class AgentAction <<Type>> #E3F2FD {
         +tool: string
         +reasoning: string
         +parameters: any
     }
     
-    class EmailService {
+    class EmailService <<Service>> #FFFDE7 {
         -transporter: Transporter
         
         +sendEmail(config: EmailConfig): Promise<void>
@@ -145,7 +176,7 @@ package "Services Layer" <<Database>> {
         +verifyConnection(): Promise<boolean>
     }
     
-    class EmailInboxService {
+    class EmailInboxService <<Service>> #FFFDE7 {
         +scanInbox(userId: string): Promise<{success: boolean, emailsFound: number}>
         -fetchUnreadEmails(config: ImapConfig, password: string): Promise<ParsedEmail[]>
         -processEmail(userId: string, email: ParsedEmail): Promise<void>
@@ -155,7 +186,7 @@ package "Services Layer" <<Database>> {
         +sendApprovedDraft(draftId: string, userId: string): Promise<boolean>
     }
     
-    class ImapConfig {
+    class ImapConfig <<Type>> #E3F2FD {
         +id: string
         +user_id: string
         +imap_host: string
@@ -165,7 +196,7 @@ package "Services Layer" <<Database>> {
         +use_ssl: boolean
     }
     
-    class ParsedEmail {
+    class ParsedEmail <<Type>> #E3F2FD {
         +messageId: string
         +from: {address: string, name?: string}
         +to: string
@@ -177,7 +208,7 @@ package "Services Layer" <<Database>> {
         +attachmentsCount: number
     }
     
-    class EmailAnalysis {
+    class EmailAnalysis <<Type>> #E3F2FD {
         +priority: string
         +category: string
         +sentiment: string
@@ -185,12 +216,12 @@ package "Services Layer" <<Database>> {
         +suggestedAction: string
     }
     
-    class PDFService {
+    class PDFService <<Service>> #FFFDE7 {
         +generatePDF(content: string, outputPath: string, options?: PDFGenerationOptions): Promise<string>
         +generateStructuredPDF(data: any, outputPath: string, template?: string): Promise<string>
     }
     
-    class ScraperService {
+    class ScraperService <<Service>> #FFFDE7 {
         -aiService: AIService
         
         +scrapeWebPage(config: ScrapingConfig): Promise<any>
@@ -200,7 +231,7 @@ package "Services Layer" <<Database>> {
         +extractData(html: string, selector: string): string[]
     }
     
-    class CronService {
+    class CronService <<Service>> #FFFDE7 {
         -jobs: Map<string, ScheduledTask>
         
         +scheduleJob(config: CronJobConfig): void
@@ -213,31 +244,31 @@ package "Services Layer" <<Database>> {
 
 ' ============ UTILITY CLASSES ============
 
-package "Utilities" <<Folder>> {
-    class EncryptionUtils {
+package "Utilities" <<Folder>> #F3E5F5 {
+    class EncryptionUtils <<Utility>> #F3E5F5 {
         +encrypt(text: string): string
         +decrypt(encryptedText: string): string
     }
     
-    class InitDirectories {
+    class InitDirectories <<Utility>> #F3E5F5 {
         +initUploadsDirs(): void
     }
     
-    class ValidateEnv {
+    class ValidateEnv <<Utility>> #F3E5F5 {
         +validateRequiredEnvVars(): void
     }
 }
 
 ' ============ DATABASE CLIENT ============
 
-package "Database Configuration" <<Cloud>> {
-    class SupabaseClient {
+package "Database Configuration" <<Cloud>> #FFF3E0 {
+    class SupabaseClient <<Cloud>> #FFE0B2 {
         +from(table: string): QueryBuilder
         +auth: AuthClient
         +storage: StorageClient
     }
     
-    class SupabaseAdminClient {
+    class SupabaseAdminClient <<Cloud>> #FFE0B2 {
         +from(table: string): QueryBuilder
         <<bypasses RLS>>
     }
@@ -245,46 +276,47 @@ package "Database Configuration" <<Cloud>> {
 
 ' ============ RELATIONSHIPS ============
 
+
 ' Type Dependencies
-AgentTask *-- TaskType
-AgentTask *-- TaskStatus
-AgentTask *-- Priority
-EmailConfig o-- EmailAttachment
+AgentTask *-- TaskType : <color:#FBC02D>
+AgentTask *-- TaskStatus : <color:#FBC02D>
+AgentTask *-- Priority : <color:#FBC02D>
+EmailConfig o-- EmailAttachment : <color:#388E3C>
 
 ' Agent Orchestrator Dependencies
-AgentOrchestrator --> AgentAction : creates
-AgentOrchestrator --> Tool : uses
-AgentOrchestrator --> AIService : uses
-AgentOrchestrator --> EmailService : uses
-AgentOrchestrator --> PDFService : uses
-AgentOrchestrator --> ScraperService : uses
-AgentOrchestrator --> CronService : uses
+AgentOrchestrator --> AgentAction : creates <color:#8E24AA>
+AgentOrchestrator --> Tool : uses <color:#8E24AA>
+AgentOrchestrator --> AIService : uses <color:#8E24AA>
+AgentOrchestrator --> EmailService : uses <color:#8E24AA>
+AgentOrchestrator --> PDFService : uses <color:#8E24AA>
+AgentOrchestrator --> ScraperService : uses <color:#8E24AA>
+AgentOrchestrator --> CronService : uses <color:#8E24AA>
 
 ' Service Dependencies
-AIService --> AIRequest : uses
-AIService --> AIResponse : returns
-EmailService --> EmailConfig : uses
-EmailInboxService --> ImapConfig : uses
-EmailInboxService --> ParsedEmail : processes
-EmailInboxService --> EmailAnalysis : creates
-EmailInboxService --> AIService : uses
-PDFService --> PDFGenerationOptions : uses
-ScraperService --> ScrapingConfig : uses
-ScraperService --> AIService : uses
-CronService --> CronJobConfig : uses
+AIService --> AIRequest : uses <color:#1976D2>
+AIService --> AIResponse : returns <color:#1976D2>
+EmailService --> EmailConfig : uses <color:#1976D2>
+EmailInboxService --> ImapConfig : uses <color:#1976D2>
+EmailInboxService --> ParsedEmail : processes <color:#1976D2>
+EmailInboxService --> EmailAnalysis : creates <color:#1976D2>
+EmailInboxService --> AIService : uses <color:#1976D2>
+PDFService --> PDFGenerationOptions : uses <color:#1976D2>
+ScraperService --> ScrapingConfig : uses <color:#1976D2>
+ScraperService --> AIService : uses <color:#1976D2>
+CronService --> CronJobConfig : uses <color:#1976D2>
 
 ' Database Dependencies
-AgentOrchestrator --> SupabaseAdminClient : queries
-AIService --> SupabaseAdminClient : queries
-EmailService --> SupabaseAdminClient : queries
-EmailInboxService --> SupabaseAdminClient : queries
-PDFService --> SupabaseAdminClient : queries
-ScraperService --> SupabaseAdminClient : queries
-CronService --> SupabaseAdminClient : queries
+AgentOrchestrator --> SupabaseAdminClient : queries <color:#0288D1>
+AIService --> SupabaseAdminClient : queries <color:#0288D1>
+EmailService --> SupabaseAdminClient : queries <color:#0288D1>
+EmailInboxService --> SupabaseAdminClient : queries <color:#0288D1>
+PDFService --> SupabaseAdminClient : queries <color:#0288D1>
+ScraperService --> SupabaseAdminClient : queries <color:#0288D1>
+CronService --> SupabaseAdminClient : queries <color:#0288D1>
 
 ' Utility Dependencies
-EmailService --> EncryptionUtils : uses
-EmailInboxService --> EncryptionUtils : uses
+EmailService --> EncryptionUtils : uses <color:#CE93D8>
+EmailInboxService --> EncryptionUtils : uses <color:#CE93D8>
 
 note top of AgentOrchestrator
   Central orchestration service that:
@@ -319,17 +351,26 @@ note top of ScraperService
 end note
 
 legend right
-  |= Component |= Description |
-  | Service | Business logic layer |
-  | Type | Data structure definitions |
-  | Utility | Helper functions |
-  | Database | Supabase clients |
+    |= Symbol / Kolor |= Znaczenie |
+    | <back:#FFFDE7>Service</back> | Warstwa logiki biznesowej (serwisy: AIService, EmailService, itd.) |
+    | <back:#E3F2FD>Type</back> | Definicje typów i struktur danych (np. AgentTask, EmailConfig) |
+    | <back:#F3E5F5>Utility</back> | Klasy pomocnicze/narzędziowe (np. EncryptionUtils) |
+    | <back:#E8F5E9>Database</back> | Warstwa dostępu do bazy danych |
+    | <back:#FFF3E0>Cloud</back> | Klasy do obsługi chmury/Supabase |
+    | <b>Gruba linia</b> | Główna zależność lub użycie |
+    | *-- | Kompozycja (zawiera) |
+    | o-- | Agregacja (ma, ale nie zarządza cyklem życia) |
+    | --> | Użycie lub zależność |
+    | <<Frame>> | Pakiet typów (Type Definitions) |
+    | <<Database>> | Pakiet serwisów biznesowych |
+    | <<Folder>> | Pakiet utili |
+    | <<Cloud>> | Pakiet konfiguracji bazy/chmury |
   
-  **Architecture Pattern:**
-  • Services handle business logic
-  • Types ensure type safety
-  • Utilities provide cross-cutting concerns
-  • All services use Supabase for persistence
+    **Wzorzec architektury:**
+    • Service – logika biznesowa
+    • Type – bezpieczeństwo typów i model danych
+    • Utility – funkcje wspólne dla wielu serwisów
+    • Wszystkie serwisy korzystają z Supabase do zapisu/odczytu
 endlegend
 
 @enduml

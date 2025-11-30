@@ -1,0 +1,252 @@
+
+@startuml Office-AI-Agent-Component-Diagram
+title The Office AI Agent - Component Diagram
+skinparam componentStyle rectangle
+skinparam BackgroundColor #FFFFFF
+skinparam shadowing false
+skinparam RoundCorner 10
+skinparam ArrowColor #454545
+skinparam defaultTextAlignment center
+skinparam packageBorderColor #888888
+skinparam packageBackgroundColor #F5F5F5
+skinparam componentBorderColor #333333
+skinparam componentBackgroundColor #FFFFFF
+skinparam databaseBackgroundColor #E0F7FA
+skinparam databaseBorderColor #00838F
+skinparam cloudBackgroundColor #FFF3E0
+skinparam cloudBorderColor #FF9800
+skinparam noteBackgroundColor #FFF9C4
+skinparam noteBorderColor #FBC02D
+
+' Kolory strzałek
+skinparam ArrowColor #616161
+skinparam ArrowThickness 2
+
+' Ikony emoji dla dziecięcej czytelności
+!define FRONTEND_ICON 🖥️
+!define BACKEND_ICON 🛠️
+!define DB_ICON 🗄️
+!define CLOUD_ICON ☁️
+
+
+' External Systems
+cloud "CLOUD_ICON External Services" as ExtCloud #FFECB3 {
+    component "🤖 Gemini AI API" as GeminiAPI #FFE0B2
+    component "📧 Gmail SMTP/IMAP" as Gmail #FFE0B2
+    component "🌐 External Websites" as WebSites #FFE0B2
+}
+
+
+' Frontend Layer
+package "FRONTEND_ICON Frontend (Next.js 15)" #E3F2FD {
+    component "🧩 React UI Components" as ReactUI #BBDEFB
+    package "Page Routes" as Pages #E1F5FE {
+        component "💬 Agent Chat Page" as AgentPage #B3E5FC
+        component "📥 Email Page" as EmailPage #B3E5FC
+        component "📄 PDF Generator Page" as PDFPage #B3E5FC
+        component "🔎 Web Scraper Page" as ScraperPage #B3E5FC
+        component "⏰ Cron Jobs Page" as CronPage #B3E5FC
+        component "📬 Email Inbox Page" as InboxPage #B3E5FC
+        component "⚙️ Settings Page" as SettingsPage #B3E5FC
+        component "🔔 Notifications Page" as NotifPage #B3E5FC
+    }
+    component "🔗 API Client (Axios)" as APIClient #90CAF9
+    component "🗄️ Supabase Client" as SupabaseFrontend #90CAF9
+    component "🔒 Authentication" as AuthFrontend #90CAF9
+}
+
+
+' Backend Layer
+package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
+    component "🚦 Express Server" as ExpressServer #FFE082
+    component "🛡️ Auth Middleware" as AuthMiddleware #FFD54F
+    component "❗ Error Handler" as ErrorHandler #FFD54F
+    
+    package "API Routes" #FFFDE7 {
+        component "🤖 Agent Routes" as AgentRoutes #FFF9C4
+        component "🧠 AI Routes" as AIRoutes #FFF9C4
+        component "📧 Email Routes" as EmailRoutes #FFF9C4
+        component "📬 Email Inbox Routes" as InboxRoutes #FFF9C4
+        component "📑 Email Template Routes" as TemplateRoutes #FFF9C4
+        component "📄 PDF Routes" as PDFRoutes #FFF9C4
+        component "🔎 Scraper Routes" as ScraperRoutes #FFF9C4
+        component "⏰ Cron Routes" as CronRoutes #FFF9C4
+        component "📊 Dashboard Routes" as DashboardRoutes #FFF9C4
+        component "👤 User Context Routes" as UserContextRoutes #FFF9C4
+        component "🔔 Notification Routes" as NotificationRoutes #FFF9C4
+        component "🔍 Search Routes" as SearchRoutes #FFF9C4
+    }
+    
+    package "Services Layer" #E8F5E9 {
+        component "🤖 Agent Orchestrator" as AgentOrchestrator #A5D6A7
+        component "🧠 AI Service" as AIService #A5D6A7
+        component "📧 Email Service" as EmailService #A5D6A7
+        component "📬 Email Inbox Service" as InboxService #A5D6A7
+        component "📄 PDF Service" as PDFService #A5D6A7
+        component "🔎 Scraper Service" as ScraperService #A5D6A7
+        component "⏰ Cron Service" as CronService #A5D6A7
+    }
+    
+    note right of AgentOrchestrator : Interprets user intent\nand executes tools
+    note right of AIService : Gemini API integration\nUser context management
+    note right of InboxService : IMAP inbox scanning\nAI email analysis\nDraft generation
+    note right of ScraperService : Web scraping\nAI-powered extraction
+    
+    package "Utilities" #F3E5F5 {
+        component "🔐 Encryption Utils" as Encryption #CE93D8
+        component "📁 Init Directories" as InitDirs #CE93D8
+        component "🧪 Validate Env" as ValidateEnv #CE93D8
+    }
+    
+    component "🗄️ Supabase Admin Client" as SupabaseBackend #B0BEC5
+}
+
+
+' Database Layer
+database "DB_ICON Supabase PostgreSQL" as SupabaseDB #E0F7FA {
+    package "Core Tables" #B2EBF2 {
+        component "👤 user_profiles" as profiles_tbl #80DEEA
+        component "💬 chat_messages" as chat_tbl #80DEEA
+    }
+    
+    package "Email System" #B2EBF2 {
+        component "🔑 user_imap_configs" as imap_tbl #80DEEA
+        component "📥 emails_inbox" as inbox_tbl #80DEEA
+        component "📝 ai_email_drafts" as drafts_tbl #80DEEA
+        component "📤 emails_sent" as sent_tbl #80DEEA
+        component "📑 email_templates" as templates_tbl #80DEEA
+        component "🕵️ email_scan_logs" as logs_tbl #80DEEA
+    }
+    
+    package "Document System" #B2EBF2 {
+        component "📄 pdf_templates" as pdf_tmpl_tbl #80DEEA
+        component "📂 pdf_files" as pdf_tbl #80DEEA
+    }
+    
+    package "Automation" #B2EBF2 {
+        component "🕸️ scrape_jobs" as scrape_tbl #80DEEA
+        component "📜 scrape_history" as scrape_hist_tbl #80DEEA
+        component "⏰ cron_jobs" as cron_tbl #80DEEA
+    }
+    
+    package "User Management" #B2EBF2 {
+        component "🧠 user_context" as context_tbl #80DEEA
+        component "🔔 notifications" as notif_tbl #80DEEA
+    }
+}
+
+
+' ============ CONNECTIONS (UPROSZCZONE I KOLOROWE) ============
+
+' Frontend to Backend
+ReactUI -[#1976D2,bold]-> APIClient : HTTP/REST
+APIClient -[#1976D2,bold]-> ExpressServer : API Calls
+ReactUI -[#43A047]-> SupabaseFrontend : Direct DB
+
+' Frontend Pages
+Pages -[#1976D2]-> ReactUI : Uses
+Pages -[#1976D2]-> AuthFrontend : Auth
+
+' Backend Flow
+ExpressServer -[#FBC02D,bold]-> AuthMiddleware : Auth
+AuthMiddleware -[#FBC02D]-> AgentRoutes
+AuthMiddleware -[#FBC02D]-> AIRoutes
+AuthMiddleware -[#FBC02D]-> EmailRoutes
+AuthMiddleware -[#FBC02D]-> InboxRoutes
+AuthMiddleware -[#FBC02D]-> TemplateRoutes
+AuthMiddleware -[#FBC02D]-> PDFRoutes
+AuthMiddleware -[#FBC02D]-> ScraperRoutes
+AuthMiddleware -[#FBC02D]-> CronRoutes
+AuthMiddleware -[#FBC02D]-> DashboardRoutes
+AuthMiddleware -[#FBC02D]-> UserContextRoutes
+AuthMiddleware -[#FBC02D]-> NotificationRoutes
+AuthMiddleware -[#FBC02D]-> SearchRoutes
+
+' Routes to Services (grupowanie)
+AgentRoutes -[#388E3C,bold]-> AgentOrchestrator : Process
+AIRoutes -[#388E3C]-> AIService : AI
+EmailRoutes -[#388E3C]-> EmailService : Email
+InboxRoutes -[#388E3C]-> InboxService : Inbox
+TemplateRoutes -[#388E3C]-> AIService : Template
+PDFRoutes -[#388E3C]-> PDFService : PDF
+PDFRoutes -[#388E3C]-> AIService : AI
+ScraperRoutes -[#388E3C]-> ScraperService : Scrape
+CronRoutes -[#388E3C]-> CronService : Jobs
+
+' Agent Orchestrator Orchestration
+AgentOrchestrator -[#8E24AA,bold]-> AIService : Intent
+AgentOrchestrator -[#8E24AA]-> EmailService : Email
+AgentOrchestrator -[#8E24AA]-> PDFService : PDF
+AgentOrchestrator -[#8E24AA]-> ScraperService : Scrape
+AgentOrchestrator -[#8E24AA]-> CronService : Cron
+
+' Services to External & Database
+AIService -[#FF9800,bold]-> GeminiAPI : API
+AIService -[#00838F]-> SupabaseBackend : Context
+EmailService -[#FF9800]-> Gmail : SMTP
+InboxService -[#FF9800]-> Gmail : IMAP
+InboxService -[#00838F]-> AIService : Analyze
+ScraperService -[#FF9800]-> WebSites : HTTP
+ScraperService -[#00838F]-> AIService : Extract
+
+' All Services to Database (grupowanie)
+AgentOrchestrator -[#00838F,bold]-> SupabaseBackend
+EmailService -[#00838F]-> SupabaseBackend
+InboxService -[#00838F]-> SupabaseBackend
+PDFService -[#00838F]-> SupabaseBackend
+ScraperService -[#00838F]-> SupabaseBackend
+CronService -[#00838F]-> SupabaseBackend
+
+' Database Layer
+SupabaseBackend -[#0288D1,bold]-> profiles_tbl
+SupabaseBackend -[#0288D1]-> chat_tbl
+SupabaseBackend -[#0288D1]-> imap_tbl
+SupabaseBackend -[#0288D1]-> inbox_tbl
+SupabaseBackend -[#0288D1]-> drafts_tbl
+SupabaseBackend -[#0288D1]-> sent_tbl
+SupabaseBackend -[#0288D1]-> templates_tbl
+SupabaseBackend -[#0288D1]-> pdf_tmpl_tbl
+SupabaseBackend -[#0288D1]-> pdf_tbl
+SupabaseBackend -[#0288D1]-> scrape_tbl
+SupabaseBackend -[#0288D1]-> cron_tbl
+SupabaseBackend -[#0288D1]-> notif_tbl
+
+' Utilities
+EmailService -[#CE93D8]-> Encryption : Decrypt
+InboxService -[#CE93D8]-> Encryption : Decrypt
+ExpressServer -[#CE93D8]-> InitDirs : Init
+ExpressServer -[#CE93D8]-> ValidateEnv : Config
+
+' Error Handling
+ExpressServer -[#D32F2F,bold]-> ErrorHandler : Errors
+
+
+legend right
+    |= Symbol / Line |= Meaning |
+    | 🖥️ | Frontend (Next.js, React) |
+    | 🛠️ | Backend (Node.js, Express) |
+    | 🗄️ | Database (Supabase/PostgreSQL) |
+    | ☁️ | External Service (AI, Gmail, Web) |
+    | Package | Logical grouping |
+    | --> | Dependency/Call direction |
+    | <color:#1976D2><b>niebieska gruba</b></color> | Frontend → Backend/API komunikacja |
+    | <color:#43A047>zielona</color> | Frontend → Supabase (bezpośredni dostęp) |
+    | <color:#FBC02D><b>żółta gruba</b></color> | Backend: autoryzacja i routing |
+    | <color:#388E3C><b>ciemnozielona gruba</b></color> | API Routes → Services (główne akcje) |
+    | <color:#8E24AA><b>fioletowa gruba</b></color> | Orkiestracja przez Agent Orchestrator |
+    | <color:#FF9800><b>pomarańczowa gruba</b></color> | Połączenia z zewnętrznymi systemami |
+    | <color:#00838F><b>turkusowa gruba</b></color> | Połączenia z bazą danych |
+    | <color:#0288D1><b>niebieska jasna</b></color> | Backend → tabele bazy danych |
+    | <color:#CE93D8>fioletowa jasna</color> | Połączenia z narzędziami pomocniczymi |
+    | <color:#D32F2F><b>czerwona gruba</b></color> | Obsługa błędów |
+  
+    **Key Features:**
+    • AI-powered office automation
+    • Email management with AI analysis
+    • PDF generation with templates
+    • Web scraping with AI extraction
+    • Scheduled tasks (cron jobs)
+    • Multi-user support with RLS
+endlegend
+
+@enduml

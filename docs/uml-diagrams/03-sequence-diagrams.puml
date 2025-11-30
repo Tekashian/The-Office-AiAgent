@@ -1,0 +1,439 @@
+@startuml Office-AI-Agent-Sequence-Diagrams
+title The Office AI Agent - Sequence Diagrams
+skinparam BackgroundColor FFFFFF
+skinparam shadowing false
+
+' ============================================
+' SCENARIO 1: AI Agent Chat with Tool Execution
+' ============================================
+
+== AI Agent Chat: Send Email via Natural Language ==
+
+actor User
+participant "Frontend\nReact UI" as Frontend
+participant "API Client" as API
+participant "Backend\nExpress Server" as Backend
+participant "Auth\nMiddleware" as Auth
+participant "Agent Routes" as AgentRoutes
+participant "Agent\nOrchestrator" as Orchestrator
+participant "AI Service\n(Gemini)" as AIService
+participant "Email\nService" as EmailService
+participant "Supabase\nDatabase" as DB
+participant "Gmail\nSMTP" as Gmail
+
+User -> Frontend: Types: "Send email to john@example.com\nabout project status"
+activate Frontend
+
+Frontend -> API: POST /api/agent/chat\n{message, conversationHistory}
+activate API
+
+API -> Backend: HTTP Request + JWT Token
+activate Backend
+
+Backend -> Auth: Verify JWT Token
+activate Auth
+Auth --> Backend: userId extracted
+deactivate Auth
+
+Backend -> AgentRoutes: Route to /chat handler
+activate AgentRoutes
+
+AgentRoutes -> Orchestrator: processMessage(message, userId, history)
+activate Orchestrator
+
+Orchestrator -> AIService: analyzeIntent(message)
+activate AIService
+note right: AI analyzes:\n"User wants to send email"
+
+AIService -> AIService: Build system prompt\nwith available tools
+AIService -> AIService: Call Gemini API
+AIService --> Orchestrator: AgentAction:\n{tool: "send_email",\nparameters: {to, subject, body}}
+deactivate AIService
+
+Orchestrator -> Orchestrator: executeAction(action, userId)
+
+Orchestrator -> DB: Get user IMAP config
+activate DB
+DB --> Orchestrator: IMAP credentials\n(encrypted password)
+deactivate DB
+
+Orchestrator -> Orchestrator: Decrypt password
+note right: Using encryption utils
+
+Orchestrator -> EmailService: sendEmail(config)
+activate EmailService
+
+EmailService -> Gmail: SMTP Send
+activate Gmail
+Gmail --> EmailService: Message sent (messageId)
+deactivate Gmail
+
+EmailService --> Orchestrator: Success
+deactivate EmailService
+
+Orchestrator -> DB: Insert email_sent record
+activate DB
+DB --> Orchestrator: Saved
+deactivate DB
+
+Orchestrator -> AIService: Format natural response
+activate AIService
+AIService --> Orchestrator: "✅ Email sent successfully\nto john@example.com!"
+deactivate AIService
+
+Orchestrator --> AgentRoutes: Response message
+deactivate Orchestrator
+
+AgentRoutes -> DB: Save chat messages\n(user + assistant)
+activate DB
+DB --> AgentRoutes: Saved
+deactivate DB
+
+AgentRoutes --> Backend: {success: true, response}
+deactivate AgentRoutes
+
+Backend --> API: JSON Response
+deactivate Backend
+
+API --> Frontend: Response data
+deactivate API
+
+Frontend -> Frontend: Update chat UI
+Frontend --> User: Display AI response
+deactivate Frontend
+
+newpage
+
+' ============================================
+' SCENARIO 2: Email Inbox Scanning with AI Analysis
+' ============================================
+
+== Email Inbox: Scan and AI Analysis ==
+
+actor User
+participant "Frontend\nEmail Inbox Page" as Frontend
+participant "Backend\nInbox Routes" as InboxRoutes
+participant "Email Inbox\nService" as InboxService
+participant "Gmail\nIMAP" as IMAP
+participant "AI Service\n(Gemini)" as AIService
+participant "Supabase\nDatabase" as DB
+
+User -> Frontend: Click "Scan Inbox"
+activate Frontend
+
+Frontend -> InboxRoutes: POST /api/email-inbox/scan
+activate InboxRoutes
+
+InboxRoutes -> DB: Get user IMAP config
+activate DB
+DB --> InboxRoutes: IMAP credentials
+deactivate DB
+
+InboxRoutes -> InboxService: scanInbox(userId)
+activate InboxService
+
+InboxService -> DB: Create scan log (status: running)
+activate DB
+DB --> InboxService: scanLog.id
+deactivate DB
+
+InboxService -> InboxService: Decrypt password
+
+InboxService -> IMAP: Connect via IMAP
+activate IMAP
+
+InboxService -> IMAP: Open INBOX folder
+IMAP --> InboxService: Folder opened
+
+InboxService -> IMAP: Search ALL emails
+IMAP --> InboxService: Email IDs list
+
+InboxService -> IMAP: Fetch last 10 emails
+IMAP --> InboxService: Email raw data
+deactivate IMAP
+
+loop For each email
+    InboxService -> InboxService: Parse email\n(mailparser)
+    
+    InboxService -> DB: Check if exists\n(by messageId)
+    activate DB
+    DB --> InboxService: Not found
+    deactivate DB
+    
+    InboxService -> AIService: analyzeEmailWithAI(email)
+    activate AIService
+    note right: AI analyzes:\n• Priority (urgent/high/normal/low)\n• Category (question/request/complaint)\n• Sentiment (positive/neutral/negative)\n• Summary\n• Suggested action
+    
+    AIService -> AIService: Call Gemini API
+    AIService --> InboxService: EmailAnalysis
+    deactivate AIService
+    
+    InboxService -> DB: Insert emails_inbox record\n+ AI analysis results
+    activate DB
+    DB --> InboxService: inboxEmail.id
+    deactivate DB
+    
+    alt If suggestedAction == "reply"
+        InboxService -> AIService: Generate draft response
+        activate AIService
+        AIService -> AIService: Call Gemini API
+        AIService --> InboxService: Draft response
+        deactivate AIService
+        
+        InboxService -> DB: Insert ai_email_drafts
+        activate DB
+        DB --> InboxService: Draft saved
+        deactivate DB
+    end
+end
+
+InboxService -> DB: Update scan log\n(status: completed)
+activate DB
+DB --> InboxService: Updated
+deactivate DB
+
+InboxService -> DB: Update last_scan_at
+activate DB
+DB --> InboxService: Updated
+deactivate DB
+
+InboxService --> InboxRoutes: {success: true,\nemailsFound: 10}
+deactivate InboxService
+
+InboxRoutes --> Frontend: Success response
+deactivate InboxRoutes
+
+Frontend -> Frontend: Refresh inbox list
+Frontend --> User: Show new emails
+deactivate Frontend
+
+newpage
+
+' ============================================
+' SCENARIO 3: PDF Generation with AI
+' ============================================
+
+== PDF Generation: AI-Generated Content ==
+
+actor User
+participant "Frontend\nPDF Page" as Frontend
+participant "Backend\nPDF Routes" as PDFRoutes
+participant "AI Service" as AIService
+participant "PDF Service" as PDFService
+participant "Supabase\nDatabase" as DB
+participant "File System" as FS
+
+User -> Frontend: Select template\n"Faktura VAT"
+activate Frontend
+
+Frontend -> Frontend: Fill form:\n• Category\n• Additional context
+
+User -> Frontend: Click "Generate with AI"
+
+Frontend -> PDFRoutes: POST /api/pdf/generate-ai\n{category, context}
+activate PDFRoutes
+
+PDFRoutes -> DB: Get user context
+activate DB
+DB --> PDFRoutes: user_profiles data
+deactivate DB
+
+PDFRoutes -> AIService: generatePDFContent(\ncategory, context, userId)
+activate AIService
+
+note right of AIService: Load user context:\n• Company name\n• Job title\n• Preferences\n• Communication style
+
+AIService -> AIService: Build AI prompt\nwith user context
+
+AIService -> AIService: Call Gemini API
+note right: Request: Generate\nprofessional invoice\ncontent in Polish
+
+AIService --> PDFRoutes: PDF content (string)
+deactivate AIService
+
+PDFRoutes -> FS: Ensure uploads/pdfs\ndirectory exists
+activate FS
+FS --> PDFRoutes: Directory ready
+deactivate FS
+
+PDFRoutes -> PDFService: generatePDF(\ncontent, filepath, options)
+activate PDFService
+
+PDFService -> PDFService: Create PDFDocument
+PDFService -> PDFService: Add title, formatting
+PDFService -> PDFService: Add content paragraphs
+
+PDFService -> FS: Write PDF file
+activate FS
+FS --> PDFService: File written
+deactivate FS
+
+PDFService --> PDFRoutes: File path
+deactivate PDFService
+
+PDFRoutes -> DB: Insert pdf_files record
+activate DB
+DB --> PDFRoutes: PDF record saved
+deactivate DB
+
+PDFRoutes --> Frontend: {success: true,\nfilename, download_url}
+deactivate PDFRoutes
+
+Frontend -> Frontend: Show success message
+Frontend --> User: "PDF generated!\nClick to download"
+deactivate Frontend
+
+newpage
+
+' ============================================
+' SCENARIO 4: Web Scraping with AI Extraction
+' ============================================
+
+== Web Scraper: AI-Powered Data Extraction ==
+
+actor User
+participant "Frontend\nScraper Page" as Frontend
+participant "Backend\nScraper Routes" as ScraperRoutes
+participant "Scraper\nService" as ScraperService
+participant "AI Service" as AIService
+participant "Target\nWebsite" as Website
+participant "Supabase\nDatabase" as DB
+
+User -> Frontend: Enter URL and prompt:\n"Extract product prices"
+activate Frontend
+
+Frontend -> ScraperRoutes: POST /api/scraper/scrape-ai\n{url, prompt}
+activate ScraperRoutes
+
+ScraperRoutes -> ScraperService: scrapeWithAI(\n{url, prompt})
+activate ScraperService
+
+ScraperService -> Website: HTTP GET request
+activate Website
+Website --> ScraperService: HTML content
+deactivate Website
+
+ScraperService -> ScraperService: Parse HTML\n(Cheerio)
+ScraperService -> ScraperService: Remove scripts,\nstyles, noscript
+ScraperService -> ScraperService: Extract text content\n(limit to 8000 chars)
+
+ScraperService -> AIService: sendRequest(\nprompt + webpage content)
+activate AIService
+
+note right of AIService: AI analyzes HTML:\n• Understands user request\n• Identifies relevant data\n• Extracts structured info
+
+AIService -> AIService: Call Gemini API
+
+AIService --> ScraperService: Extracted data (JSON)
+deactivate AIService
+
+ScraperService --> ScraperRoutes: Scraping result
+deactivate ScraperService
+
+ScraperRoutes -> DB: Insert scrape_jobs record\n+ result_data
+activate DB
+DB --> ScraperRoutes: Job saved
+deactivate DB
+
+ScraperRoutes -> DB: Insert scrape_history
+activate DB
+DB --> ScraperRoutes: History saved
+deactivate DB
+
+ScraperRoutes --> Frontend: {success: true,\ndata: extractedData}
+deactivate ScraperRoutes
+
+Frontend -> Frontend: Display extracted data\nin table format
+Frontend --> User: Show results
+deactivate Frontend
+
+newpage
+
+' ============================================
+' SCENARIO 5: Scheduled Task (Cron Job)
+' ============================================
+
+== Cron Job: Scheduled Email Automation ==
+
+actor User
+participant "Frontend\nCron Page" as Frontend
+participant "Backend\nCron Routes" as CronRoutes
+participant "Cron Service" as CronService
+participant "Agent\nOrchestrator" as Orchestrator
+participant "Supabase\nDatabase" as DB
+
+User -> Frontend: Create scheduled task:\n• Name: "Daily Report"\n• Schedule: "0 9 * * *"\n• Type: email
+activate Frontend
+
+Frontend -> CronRoutes: POST /api/cron/create\n{name, schedule, task_type, config}
+activate CronRoutes
+
+CronRoutes -> DB: Insert cron_jobs record
+activate DB
+DB --> CronRoutes: job.id
+deactivate DB
+
+CronRoutes -> CronService: scheduleJob(config)
+activate CronService
+
+CronService -> CronService: Validate cron expression
+note right: "0 9 * * *" = Daily at 9am
+
+CronService -> CronService: Create ScheduledTask
+note right: Uses node-cron library
+
+CronService -> CronService: Register job in jobs Map
+
+CronService --> CronRoutes: Job scheduled
+deactivate CronService
+
+CronRoutes --> Frontend: {success: true, jobId}
+deactivate CronRoutes
+
+Frontend --> User: "Task scheduled!"
+deactivate Frontend
+
+... Time passes - Clock strikes 9:00 AM ...
+
+CronService -> CronService: Trigger job execution
+activate CronService
+
+CronService -> Orchestrator: Execute task based on type
+activate Orchestrator
+
+alt task_type == "email"
+    Orchestrator -> Orchestrator: executeSendEmail(config, userId)
+else task_type == "pdf"
+    Orchestrator -> Orchestrator: executeGeneratePDF(config, userId)
+else task_type == "scraper"
+    Orchestrator -> Orchestrator: executeScrapeWebsite(config, userId)
+end
+
+Orchestrator --> CronService: Execution result
+deactivate Orchestrator
+
+CronService -> DB: Update cron_jobs:\n• last_run\n• status: completed\n• last_result
+activate DB
+DB --> CronService: Updated
+deactivate DB
+
+CronService -> CronService: Log completion
+deactivate CronService
+
+legend right
+  |= Component |= Technology |
+  | Frontend | Next.js 15 + React 19 |
+  | Backend | Node.js + Express + TypeScript |
+  | AI Service | Google Gemini AI |
+  | Database | Supabase PostgreSQL |
+  | Email | Gmail SMTP/IMAP |
+  
+  **Key Patterns:**
+  • RESTful API architecture
+  • JWT authentication
+  • AI-powered automation
+  • Asynchronous processing
+  • Database persistence
+endlegend
+
+@enduml

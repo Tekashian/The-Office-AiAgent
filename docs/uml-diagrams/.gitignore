@@ -1,0 +1,19 @@
+# Generated images (optional - you can commit them if you want)
+*.png
+*.svg
+*.pdf
+*.eps
+*.latex
+
+# Node modules if you run npm install here
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep the source .puml files and documentation
+!*.puml
+!*.md
+!package.json
+!generate-diagrams.js

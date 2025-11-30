@@ -1,0 +1,13 @@
+{
+  "name": "uml-diagram-generator",
+  "version": "1.0.0",
+  "description": "Generate UML diagrams from PlantUML files",
+  "scripts": {
+    "generate:png": "node generate-diagrams.js png",
+    "generate:svg": "node generate-diagrams.js svg",
+    "generate:all": "node generate-diagrams.js all"
+  },
+  "dependencies": {
+    "node-plantuml": "^0.9.0"
+  }
+}

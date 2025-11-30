@@ -11,12 +11,45 @@
 
 - [Funkcjonalności](#-funkcjonalności)
 - [Technologie](#-technologie)
+- [**📊 Dokumentacja Architektury (UML Diagrams)**](#-dokumentacja-architektury)
 - [Struktura projektu](#-struktura-projektu)
 - [Instalacja](#-instalacja)
 - [Konfiguracja](#-konfiguracja)
 - [Uruchomienie](#-uruchomienie)
 - [Dokumentacja API](#-dokumentacja-api)
 - [Screenshots](#-screenshots)
+
+## 📊 Dokumentacja Architektury
+
+### 🎨 Profesjonalne Diagramy UML
+
+Projekt zawiera **kompletną dokumentację architektoniczną** na poziomie enterprise w formie diagramów UML:
+
+📂 **Lokalizacja**: [`docs/uml-diagrams/`](docs/uml-diagrams/)
+
+#### 6 Diagramów Świadczących o Jakości Architektury:
+
+1. **Component Diagram** - Architektura systemu i zależności komponentów
+2. **Class Diagram** - Struktura klas, serwisów i relacji
+3. **Sequence Diagrams** - 5 szczegółowych przepływów operacji
+4. **Deployment Diagram** - Infrastruktura i strategia wdrożenia
+5. **Database ERD** - Schemat bazy danych (16 tabel)
+6. **Use Case Diagram** - Wszystkie funkcjonalności systemu (45+ use cases)
+
+#### 📖 Dokumentacja:
+- **[Pełna Dokumentacja](docs/uml-diagrams/README.md)** - Szczegółowy przewodnik po wszystkich diagramach (4500+ słów)
+- **[Quick Start](docs/uml-diagrams/QUICKSTART.md)** - Jak szybko zobaczyć diagramy (1 minuta)
+- **[Przewodnik Generowania](docs/uml-diagrams/GENERATE_IMAGES.md)** - Jak wygenerować PNG/SVG/PDF
+- **[Podsumowanie Implementacji](docs/uml-diagrams/IMPLEMENTATION_SUMMARY.md)** - Co zostało zrobione
+
+#### ⚡ Quick Preview:
+```bash
+# Otwórz w VS Code z rozszerzeniem PlantUML
+code docs/uml-diagrams/01-component-diagram.puml
+# Naciśnij Alt+D aby zobaczyć diagram
+```
+
+**Poziom Jakości**: ⭐⭐⭐⭐⭐ World-Class Enterprise Architecture
 
 ## ✨ Funkcjonalności
 

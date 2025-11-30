@@ -1,0 +1,335 @@
+@startuml Office-AI-Agent-Class-Diagram
+title The Office AI Agent - Class Diagram
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam BackgroundColor FFFFFF
+skinparam shadowing false
+
+' ============ TYPE DEFINITIONS ============
+
+package "Type Definitions" <<Frame>> {
+    enum TaskType {
+        EMAIL
+        PDF_GENERATION
+        WEB_SCRAPING
+        SCHEDULED
+        AI_REQUEST
+    }
+    
+    enum TaskStatus {
+        PENDING
+        IN_PROGRESS
+        COMPLETED
+        FAILED
+        CANCELLED
+    }
+    
+    enum Priority {
+        LOW
+        MEDIUM
+        HIGH
+        URGENT
+    }
+    
+    class AgentTask {
+        +id: string
+        +type: TaskType
+        +description: string
+        +status: TaskStatus
+        +priority: Priority
+        +createdAt: Date
+        +updatedAt: Date
+        +completedAt?: Date
+        +result?: any
+        +error?: string
+    }
+    
+    class EmailConfig {
+        +to: string | string[]
+        +subject: string
+        +text?: string
+        +html?: string
+        +attachments?: EmailAttachment[]
+    }
+    
+    class EmailAttachment {
+        +filename: string
+        +content?: Buffer
+        +path?: string
+    }
+    
+    class PDFGenerationOptions {
+        +title?: string
+        +author?: string
+        +subject?: string
+        +outputPath?: string
+    }
+    
+    class ScrapingConfig {
+        +url: string
+        +selectors?: Map<string, string>
+        +waitFor?: number
+    }
+    
+    class AIRequest {
+        +prompt: string
+        +context?: any
+        +model?: string
+        +temperature?: number
+        +maxTokens?: number
+    }
+    
+    class AIResponse {
+        +content: string
+        +model: string
+        +tokensUsed?: number
+    }
+    
+    class CronJobConfig {
+        +name: string
+        +schedule: string
+        +task: () => Promise<void>
+        +enabled: boolean
+    }
+}
+
+' ============ SERVICE CLASSES ============
+
+package "Services Layer" <<Database>> {
+    
+    class AIService {
+        -apiKey: string
+        -apiUrl: string
+        -model: string
+        
+        +sendRequest(request: AIRequest): Promise<AIResponse>
+        +processTask(taskDescription: string, context?: any): Promise<string>
+        +analyzeText(text: string, analysisType: string): Promise<any>
+        +chat(currentMessage: string, conversationHistory?: Array): Promise<string>
+        +getUserContext(userId: string): Promise<string>
+        +generateEmailTemplate(category: string, additionalContext?: string, userId?: string): Promise<{subject: string, body: string}>
+        +generatePDFContent(category: string, additionalContext?: string, userId?: string): Promise<string>
+    }
+    
+    class AgentOrchestrator {
+        -tools: Tool[]
+        
+        -getSystemPrompt(): string
+        +analyzeIntent(message: string, userId?: string): Promise<AgentAction>
+        +executeAction(action: AgentAction, userId?: string): Promise<string>
+        -executeSendEmail(params: any, userId?: string): Promise<string>
+        -executeGeneratePDF(params: any, userId?: string): Promise<string>
+        -executeScrapeWebsite(params: any, userId?: string): Promise<string>
+        -executeCreateCronJob(params: any, userId?: string): Promise<string>
+        -executeConversation(params: any, userId?: string): Promise<string>
+        +processMessage(message: string, userId?: string, conversationHistory?: any[]): Promise<string>
+    }
+    
+    class Tool {
+        +name: string
+        +description: string
+        +parameters: any
+    }
+    
+    class AgentAction {
+        +tool: string
+        +reasoning: string
+        +parameters: any
+    }
+    
+    class EmailService {
+        -transporter: Transporter
+        
+        +sendEmail(config: EmailConfig): Promise<void>
+        +sendBulkEmails(configs: EmailConfig[]): Promise<void>
+        +verifyConnection(): Promise<boolean>
+    }
+    
+    class EmailInboxService {
+        +scanInbox(userId: string): Promise<{success: boolean, emailsFound: number}>
+        -fetchUnreadEmails(config: ImapConfig, password: string): Promise<ParsedEmail[]>
+        -processEmail(userId: string, email: ParsedEmail): Promise<void>
+        -analyzeEmailWithAI(email: ParsedEmail): Promise<EmailAnalysis>
+        -generateAIDraft(userId: string, inboxEmailId: string, email: ParsedEmail): Promise<void>
+        +generateDraftForEmail(userId: string, email: any): Promise<any>
+        +sendApprovedDraft(draftId: string, userId: string): Promise<boolean>
+    }
+    
+    class ImapConfig {
+        +id: string
+        +user_id: string
+        +imap_host: string
+        +imap_port: number
+        +imap_user: string
+        +imap_password: string
+        +use_ssl: boolean
+    }
+    
+    class ParsedEmail {
+        +messageId: string
+        +from: {address: string, name?: string}
+        +to: string
+        +subject: string
+        +text: string
+        +html: string
+        +date: Date
+        +hasAttachments: boolean
+        +attachmentsCount: number
+    }
+    
+    class EmailAnalysis {
+        +priority: string
+        +category: string
+        +sentiment: string
+        +summary: string
+        +suggestedAction: string
+    }
+    
+    class PDFService {
+        +generatePDF(content: string, outputPath: string, options?: PDFGenerationOptions): Promise<string>
+        +generateStructuredPDF(data: any, outputPath: string, template?: string): Promise<string>
+    }
+    
+    class ScraperService {
+        -aiService: AIService
+        
+        +scrapeWebPage(config: ScrapingConfig): Promise<any>
+        +scrapeWithAI(config: {url: string, prompt: string, selectors?: any}): Promise<any>
+        +analyzePageStructure(url: string): Promise<any>
+        +scrapeMultiplePages(configs: ScrapingConfig[]): Promise<any[]>
+        +extractData(html: string, selector: string): string[]
+    }
+    
+    class CronService {
+        -jobs: Map<string, ScheduledTask>
+        
+        +scheduleJob(config: CronJobConfig): void
+        +stopJob(name: string): void
+        +startJob(name: string): void
+        +stopAllJobs(): void
+        +getActiveJobs(): string[]
+    }
+}
+
+' ============ UTILITY CLASSES ============
+
+package "Utilities" <<Folder>> {
+    class EncryptionUtils {
+        +encrypt(text: string): string
+        +decrypt(encryptedText: string): string
+    }
+    
+    class InitDirectories {
+        +initUploadsDirs(): void
+    }
+    
+    class ValidateEnv {
+        +validateRequiredEnvVars(): void
+    }
+}
+
+' ============ DATABASE CLIENT ============
+
+package "Database Configuration" <<Cloud>> {
+    class SupabaseClient {
+        +from(table: string): QueryBuilder
+        +auth: AuthClient
+        +storage: StorageClient
+    }
+    
+    class SupabaseAdminClient {
+        +from(table: string): QueryBuilder
+        <<bypasses RLS>>
+    }
+}
+
+' ============ RELATIONSHIPS ============
+
+' Type Dependencies
+AgentTask *-- TaskType
+AgentTask *-- TaskStatus
+AgentTask *-- Priority
+EmailConfig o-- EmailAttachment
+
+' Agent Orchestrator Dependencies
+AgentOrchestrator --> AgentAction : creates
+AgentOrchestrator --> Tool : uses
+AgentOrchestrator --> AIService : uses
+AgentOrchestrator --> EmailService : uses
+AgentOrchestrator --> PDFService : uses
+AgentOrchestrator --> ScraperService : uses
+AgentOrchestrator --> CronService : uses
+
+' Service Dependencies
+AIService --> AIRequest : uses
+AIService --> AIResponse : returns
+EmailService --> EmailConfig : uses
+EmailInboxService --> ImapConfig : uses
+EmailInboxService --> ParsedEmail : processes
+EmailInboxService --> EmailAnalysis : creates
+EmailInboxService --> AIService : uses
+PDFService --> PDFGenerationOptions : uses
+ScraperService --> ScrapingConfig : uses
+ScraperService --> AIService : uses
+CronService --> CronJobConfig : uses
+
+' Database Dependencies
+AgentOrchestrator --> SupabaseAdminClient : queries
+AIService --> SupabaseAdminClient : queries
+EmailService --> SupabaseAdminClient : queries
+EmailInboxService --> SupabaseAdminClient : queries
+PDFService --> SupabaseAdminClient : queries
+ScraperService --> SupabaseAdminClient : queries
+CronService --> SupabaseAdminClient : queries
+
+' Utility Dependencies
+EmailService --> EncryptionUtils : uses
+EmailInboxService --> EncryptionUtils : uses
+
+note top of AgentOrchestrator
+  Central orchestration service that:
+  • Interprets user natural language
+  • Determines appropriate tool/action
+  • Executes actions via specialized services
+  • Provides unified interface for AI agent
+end note
+
+note top of AIService
+  AI Integration service:
+  • Gemini AI API communication
+  • User context management
+  • Template generation
+  • Multi-turn conversation
+end note
+
+note top of EmailInboxService
+  Advanced email management:
+  • IMAP inbox scanning
+  • AI-powered email analysis
+  • Automatic draft generation
+  • Smart categorization
+end note
+
+note top of ScraperService
+  Intelligent web scraping:
+  • Manual CSS selector scraping
+  • AI-powered data extraction
+  • Page structure analysis
+  • Multi-page scraping
+end note
+
+legend right
+  |= Component |= Description |
+  | Service | Business logic layer |
+  | Type | Data structure definitions |
+  | Utility | Helper functions |
+  | Database | Supabase clients |
+  
+  **Architecture Pattern:**
+  • Services handle business logic
+  • Types ensure type safety
+  • Utilities provide cross-cutting concerns
+  • All services use Supabase for persistence
+endlegend
+
+@enduml

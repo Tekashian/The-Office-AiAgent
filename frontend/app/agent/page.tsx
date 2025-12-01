@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, Send, Sparkles, Loader2, LogOut, Settings, User, ChevronDown, Mail, Shield, Calendar } from 'lucide-react';
+import { usePDFRefresh } from '@/context/pdfRefreshContext';
+import { Bot, Send, Sparkles, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { apiClient } from '@/lib/api';
-import { getCurrentUser, signOut } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 
 interface Message {
   id: string;
@@ -17,8 +18,7 @@ interface Message {
 }
 
 export default function AgentPage() {
-  // Usunięto user i setUser, nie są już potrzebne
-  // Usunięto showProfileDropdown, nie jest już używany
+  const { triggerRefresh } = usePDFRefresh();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -40,13 +40,21 @@ export default function AgentPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Usunięto useEffect sprawdzający autoryzację użytkownika
-
-  // Usunięto handleSignOut, nie jest już potrzebny
-
-  // Usunięto toggleProfileDropdown, nie jest już używany
-
-  // Usunięto useEffect do zamykania dropdowna, nie jest już używany
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        if (!currentUser) {
+          router.push('/auth');
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        router.push('/auth');
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -78,10 +86,15 @@ export default function AgentPage() {
       });
 
       if (response.data.success) {
+        const agentContent = response.data.data.content;
+        // If the agent's response contains the PDF confirmation phrase, trigger PDF list refresh
+        if (agentContent.includes('Twój raport PDF jest dostępny w zakładce PDF Generator')) {
+          triggerRefresh();
+        }
         const agentMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'model',
-          content: response.data.data.content,
+          content: agentContent,
           timestamp: new Date(response.data.data.timestamp),
         };
         setMessages((prev) => [...prev, agentMessage]);
@@ -104,18 +117,23 @@ export default function AgentPage() {
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Usunięto nagłówek (navbar) z białym paskiem */}
-
       {/* Main content */}
       <div className="flex-1 flex flex-col p-6 overflow-hidden">
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
           Rozmawiaj z agentem AI i automatyzuj swoje zadania
         </p>
 
-        <Card className="flex flex-1 flex-col overflow-hidden">
-        <CardContent className="flex flex-1 flex-col p-0">
+        <Card className="flex flex-1 flex-col">
+        <CardContent className="flex flex-1 flex-col p-0 overflow-hidden">
           {/* Messages */}
-          <div className="flex-1 space-y-4 overflow-y-auto p-6">
+          <div
+            className="flex-1 space-y-4 p-6 custom-scrollbar"
+            style={{
+              height: '100%',
+              minHeight: 0,
+              overflowY: 'auto',
+            }}
+          >
             {messages.map((message) => (
               <div
                 key={message.id}

@@ -35,7 +35,7 @@ class AgentOrchestrator {
     },
     {
       name: 'generate_pdf',
-      description: 'Generate a PDF document. Use when user wants to create/generate a PDF/document/report.',
+      description: 'Generate a PDF document. Use when user wants to create/generate/make a PDF/document/report/raport. Keywords: pdf, raport, dokument, wygeneruj, stwórz, utwórz.',
       parameters: {
         title: 'string - document title',
         content: 'string - document content',
@@ -113,6 +113,26 @@ Response: {
     "schedule": "0 9 * * *",
     "task_type": "pdf",
     "task_config": { "title": "Daily Report" }
+  }
+}
+
+User: "Wygeneruj raport sprzedażowy"
+Response: {
+  "tool": "generate_pdf",
+  "reasoning": "User wants to generate a PDF report",
+  "parameters": {
+    "title": "Raport sprzedażowy",
+    "content": "Raport sprzedażowy zawierający podsumowanie wyników sprzedaży."
+  }
+}
+
+User: "Stwórz dokument PDF o tytule Test"
+Response: {
+  "tool": "generate_pdf",
+  "reasoning": "User wants to create a PDF document",
+  "parameters": {
+    "title": "Test",
+    "content": "Dokument testowy."
   }
 }
 
@@ -251,8 +271,8 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
 
       console.log('✅ Email sent successfully:', info.messageId);
 
-      // Save to database
-      await supabase.from('emails_sent').insert({
+      // Save to database (use supabaseAdmin to bypass RLS)
+      await supabaseAdmin.from('emails_sent').insert({
         user_id: userId,
         recipient: Array.isArray(params.to) ? params.to.join(', ') : params.to,
         subject: params.subject,
@@ -295,8 +315,8 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
 
       const fileStats = fs.statSync(filepath);
 
-      // Save to database
-      await supabase.from('pdf_files').insert({
+      // Save to database (use supabaseAdmin to bypass RLS)
+      await supabaseAdmin.from('pdf_files').insert({
         user_id: userId,
         title: params.title,
         filename: filename,
@@ -304,7 +324,7 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
         file_size: fileStats.size,
       });
 
-      return `✅ PDF generated successfully: ${params.title} (${filename})`;
+      return `✅ PDF generated successfully: ${params.title} (${filename})\n\nTwój raport PDF jest dostępny w zakładce PDF Generator w sekcji Ostatnie PDF.`;
     } catch (error) {
       console.error('PDF execution error:', error);
       return `❌ Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -325,8 +345,8 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
         selectors: params.selectors,
       });
 
-      // Save to database
-      await supabase.from('scrape_jobs').insert({
+      // Save to database (use supabaseAdmin to bypass RLS)
+      await supabaseAdmin.from('scrape_jobs').insert({
         user_id: userId,
         url: params.url,
         status: 'completed',
@@ -350,8 +370,8 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
     }
 
     try {
-      // Save to database
-      const { data, error } = await supabase
+      // Save to database (use supabaseAdmin to bypass RLS)
+      const { data, error } = await supabaseAdmin
         .from('cron_jobs')
         .insert({
           user_id: userId,
@@ -401,8 +421,8 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
                 result = `Unknown task type: ${params.task_type}`;
             }
 
-            // Update status in database
-            await supabase
+            // Update status in database (use supabaseAdmin to bypass RLS)
+            await supabaseAdmin
               .from('cron_jobs')
               .update({
                 status: 'completed',
@@ -416,8 +436,8 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
           } catch (error) {
             console.error(`❌ Cron job failed: ${params.name}`, error);
 
-            // Save error to database
-            await supabase
+            // Save error to database (use supabaseAdmin to bypass RLS)
+            await supabaseAdmin
               .from('cron_jobs')
               .update({
                 status: 'failed',

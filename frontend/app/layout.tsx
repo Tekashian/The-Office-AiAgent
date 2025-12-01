@@ -4,6 +4,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { ToastProvider } from "@/components/ui/Toast";
+import { PDFRefreshProvider } from "@/context/pdfRefreshContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,15 +25,17 @@ export default function RootLayout({
     <html lang="pl" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ToastProvider>
-          <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-black">
-            <Sidebar />
-            <div className="flex flex-1 flex-col overflow-hidden lg:ml-64">
-              <Header />
-              <main className="flex-1 overflow-y-auto">
-                {children}
-              </main>
+          <PDFRefreshProvider>
+            <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-black">
+              <Sidebar />
+              <div className="flex flex-1 flex-col overflow-hidden lg:ml-64">
+                <Header />
+                <main className="flex-1 overflow-y-auto">
+                  {children}
+                </main>
+              </div>
             </div>
-          </div>
+          </PDFRefreshProvider>
         </ToastProvider>
       </body>
     </html>

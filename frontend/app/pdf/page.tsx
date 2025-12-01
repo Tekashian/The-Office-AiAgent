@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { usePDFRefresh } from '@/context/pdfRefreshContext';
 import { FileText, Download, Plus, Eye, Trash2, Edit, Star, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +32,7 @@ interface PDFFile {
 }
 
 export default function PDFPage() {
+  const { refreshKey } = usePDFRefresh();
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('id');
@@ -141,7 +143,12 @@ export default function PDFPage() {
       fetchPDFFiles();
     };
     checkAuth();
-  }, [fetchTemplates, fetchPDFFiles, showToast]);
+    // Also refetch PDF files when refreshKey changes
+    // (refreshKey increments when a PDF is generated via chat)
+    // Only fetchPDFFiles, not templates, on refreshKey change
+    // (templates are not affected by PDF generation)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchTemplates, fetchPDFFiles, showToast, refreshKey]);
 
   // Scroll to highlighted PDF when loaded
   useEffect(() => {

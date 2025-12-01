@@ -232,14 +232,18 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
 
     console.log(`🤖 Generating email template for category: ${category}, user: ${userId}`);
     
-    // Pass userId to enable user context
-    const template = await aiService.generateEmailTemplate(category, context, userId);
+    // Generate template using new API
+    const template = await aiService.generateEmailTemplate({
+      subject: category,
+      purpose: context || `Generate a professional email template for ${category}`,
+      tone: 'professional',
+    });
     
     console.log('✅ Template generated successfully with user context');
     
     res.json({
-      subject: template.subject,
-      body: template.body,
+      subject: category,
+      body: template,
       category
     });
   } catch (error: any) {

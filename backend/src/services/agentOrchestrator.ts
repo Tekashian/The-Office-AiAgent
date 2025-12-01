@@ -282,14 +282,14 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
         console.log('🤖 Enhancing email with AI for professional format...');
         
         try {
-          const enhanced = await aiService.generateEmailTemplate(
-            'professional_notification',
-            `Create a professional formal email with this message: "${params.body}". Subject should be: "${params.subject || 'Ważna informacja'}".`,
-            userId
-          );
+          const enhanced = await aiService.generateEmailTemplate({
+            subject: params.subject || 'Ważna informacja',
+            purpose: params.body,
+            tone: 'professional',
+          });
           
-          emailBody = enhanced.body;
-          emailSubject = enhanced.subject || params.subject;
+          emailBody = enhanced;
+          emailSubject = params.subject || 'Ważna informacja';
           
           console.log('✅ Email enhanced with professional format');
         } catch (enhanceError) {
@@ -576,7 +576,7 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
         
         // Just have AI respond naturally with context
         const contextualMessage = userContext ? `${userContext}\n\n${message}` : message;
-        return await aiService.chat(contextualMessage, conversationHistory);
+        return await aiService.chat(contextualMessage, conversationHistory || []);
       }
 
       console.log('🔧 Executing action:', action.tool);

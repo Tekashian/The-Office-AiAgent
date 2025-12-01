@@ -1,282 +1,71 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
 import { usePDFRefresh } from '@/context/pdfRefreshContext';
-import { Bot, Send, Sparkles, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Textarea';
-import { apiClient } from '@/lib/api';
-import { getCurrentUser } from '@/lib/auth';
-
-interface Message {
-  id: string;
-  role: 'user' | 'model';
-  content: string;
-  timestamp: Date;
-}
+import { useAgent } from '@/hooks/useAgent';
+import { AgentMessage } from '@/components/agent/AgentMessage';
+import { AgentInput } from '@/components/agent/AgentInput';
+import { AgentExamples } from '@/components/agent/AgentExamples';
+import { AgentLoadingIndicator } from '@/components/agent/AgentLoadingIndicator';
 
 export default function AgentPage() {
   const { triggerRefresh } = usePDFRefresh();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'model',
-      content: 'Cześć! Jestem Twoim AI agentem biurowym. Mogę pomóc Ci w automatyzacji zadań, wysyłaniu emaili, generowaniu PDF-ów i wiele więcej. W czym mogę Ci dziś pomóc?',
-      timestamp: new Date(),
-    },
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showExamples, setShowExamples] = useState(true);
 
-  const examplePrompts = [
-    "Wygeneruj raport sprzedażowy za ostatni miesiąc",
-    "Pobierz dane ze strony https://example.com",
-    "Wyślij email do klienta z podsumowaniem",
-    "Utwórz zadanie cykliczne co poniedziałek o 9:00",
-  ];
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
+  const {
+    messages,
+    input,
+    isLoading,
+    showExamples,
+    setInput,
+    sendMessage,
+    hideExamples,
+    messagesEndRef,
+  } = useAgent({
+    onPDFGenerated: triggerRefresh,
+    requireAuth: true,
+  });
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const currentUser = await getCurrentUser();
-        if (!currentUser) {
-          router.push('/auth');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        router.push('/auth');
-      }
-    };
-    
-    checkAuth();
-  }, [router]);
-
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-
-    // Hide examples after first message
-    setShowExamples(false);
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      // Build conversation history in Gemini format
-      // Only include messages that have actual content
-      const conversationHistory = messages
-        .filter((msg) => msg.id !== '1' && msg.content && msg.content.trim()) // Exclude initial greeting and empty messages
-        .map((msg) => ({
-          role: msg.role,
-          text: msg.content, // Backend expects 'text' not 'parts'
-        }));
-
-      const response = await apiClient.post('/api/agent/chat', {
-        message: userMessage.content,
-        conversationHistory,
-      });
-
-      if (response.data.success) {
-        const agentContent = response.data.data.content;
-        // If the agent's response contains the PDF confirmation phrase, trigger PDF list refresh
-        if (agentContent.includes('Twój raport PDF jest dostępny w zakładce PDF Generator')) {
-          triggerRefresh();
-        }
-        const agentMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'model',
-          content: agentContent,
-          timestamp: new Date(response.data.data.timestamp),
-        };
-        setMessages((prev) => [...prev, agentMessage]);
-      } else {
-        throw new Error(response.data.message || 'Failed to get response');
-      }
-    } catch (error) {
-      console.error('Chat error:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'model',
-        content: 'Przepraszam, wystąpił błąd podczas przetwarzania Twojej wiadomości. Upewnij się, że backend jest uruchomiony i klucz API Gemini jest skonfigurowany w pliku .env.',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSelectPrompt = (prompt: string) => {
+    setInput(prompt);
+    hideExamples();
   };
 
   return (
     <div className="h-full flex flex-col">
-      {/* Main content */}
       <div className="flex-1 flex flex-col p-6 min-h-0">
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
           Rozmawiaj z agentem AI i automatyzuj swoje zadania
         </p>
 
         <Card className="flex flex-1 flex-col min-h-0">
-        <CardContent className="flex flex-1 flex-col p-0 min-h-0">
-          {/* Messages */}
-          <div
-            className="flex-1 space-y-4 p-6 overflow-y-auto custom-scrollbar"
-          >
-            {messages.map((message, index) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                } animate-in fade-in slide-in-from-bottom-4 duration-500`}
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div
-                  className={`flex max-w-[80%] gap-3 ${
-                    message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
-                  }`}
-                >
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 ${
-                      message.role === 'user'
-                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/50'
-                        : 'bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-600/50 animate-pulse-slow'
-                    }`}
-                  >
-                    {message.role === 'user' ? (
-                      <span className="text-sm font-medium">JA</span>
-                    ) : (
-                      <Bot className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div
-                    className={`rounded-2xl px-4 py-3 transition-all hover:scale-[1.02] ${
-                      message.role === 'user'
-                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                        : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900 dark:from-gray-800 dark:to-gray-900 dark:text-gray-100 shadow-lg'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap text-sm">{message.content}</p>
-                    <p
-                      className={`mt-1 text-xs ${
-                        message.role === 'user'
-                          ? 'text-primary-100'
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      {message.timestamp.toLocaleTimeString('pl-PL', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <CardContent className="flex flex-1 flex-col p-0 min-h-0">
+            {/* Messages */}
+            <div className="flex-1 space-y-4 p-6 overflow-y-auto custom-scrollbar">
+              {messages.map((message, index) => (
+                <AgentMessage key={message.id} message={message} index={index} />
+              ))}
 
-            {/* Example Prompts */}
-            {showExamples && messages.length === 1 && (
-              <div className="mt-8 space-y-3">
-                <p className="text-center text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Przykładowe polecenia:
-                </p>
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  {examplePrompts.map((prompt, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setInput(prompt);
-                        setShowExamples(false);
-                      }}
-                      className="group rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-primary-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary-400"
-                    >
-                      <div className="flex items-start gap-2">
-                        <Sparkles className="mt-0.5 h-4 w-4 text-primary-600 dark:text-primary-400" />
-                        <span className="text-gray-700 group-hover:text-primary-600 dark:text-gray-300 dark:group-hover:text-primary-400">
-                          {prompt}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+              {/* Example Prompts */}
+              {showExamples && messages.length === 1 && (
+                <AgentExamples onSelectPrompt={handleSelectPrompt} />
+              )}
 
-            {isLoading && (
-              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex max-w-[80%] gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-600/50">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  </div>
-                  <div className="rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-3 shadow-lg dark:from-gray-800 dark:to-gray-900">
-                    <div className="flex gap-1">
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-purple-500" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:0.2s]" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-500 [animation-delay:0.4s]" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              {/* Loading Indicator */}
+              {isLoading && <AgentLoadingIndicator />}
 
-          {/* Input */}
-          <div className="border-t border-gray-200 p-4 dark:border-gray-800">
-            <div className="flex gap-3">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder="Opisz zadanie dla AI agenta..."
-                className="min-h-[60px] resize-none"
-                disabled={isLoading}
-              />
-              <div className="flex flex-col gap-2">
-                <Button
-                  onClick={handleSend}
-                  disabled={!input.trim() || isLoading}
-                  className="h-full"
-                >
-                  {isLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </Button>
-                <Button variant="outline" size="sm" className="h-full">
-                  <Sparkles className="h-4 w-4" />
-                </Button>
-              </div>
+              <div ref={messagesEndRef} />
             </div>
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              Naciśnij Enter aby wysłać, Shift+Enter dla nowej linii
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+
+            {/* Input */}
+            <AgentInput
+              value={input}
+              onChange={setInput}
+              onSend={sendMessage}
+              disabled={false}
+              isLoading={isLoading}
+            />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

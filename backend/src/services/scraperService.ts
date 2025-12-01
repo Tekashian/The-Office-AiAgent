@@ -1,14 +1,9 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { ScrapingConfig } from '../types';
-import { AIService } from './aiService';
+import aiService from './aiService';
 
 export class ScraperService {
-  private aiService: AIService;
-
-  constructor() {
-    this.aiService = new AIService();
-  }
 
   /**
    * Scrape a web page with manual selectors
@@ -75,7 +70,7 @@ export class ScraperService {
       const limitedContent = textContent.substring(0, 8000);
 
       // Use AI to extract data based on prompt
-      const aiResponse = await this.aiService.sendRequest({
+      const aiResponse = await aiService.sendRequest({
         prompt: `You are a web scraping assistant. Extract the following information from this webpage content:
 
 USER REQUEST: ${config.prompt}
@@ -165,7 +160,7 @@ Return the extracted data as a JSON object. Be precise and extract only the requ
 
       // Use AI to suggest extraction strategy
       try {
-        const aiSuggestions = await this.aiService.sendRequest({
+        const aiSuggestions = await aiService.sendRequest({
           prompt: `Analyze this webpage structure and suggest the best way to extract data:
 
 Page Title: ${analysis.title}

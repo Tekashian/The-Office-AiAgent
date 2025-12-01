@@ -1,424 +1,85 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { usePDFRefresh } from '@/context/pdfRefreshContext';
-import { FileText, Download, Plus, Eye, Trash2, Edit, Star, Sparkles } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
-import { Badge } from '@/components/ui/Badge';
-import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
-import { getAccessToken, getCurrentUser } from '@/lib/auth';
-import { useSearchParams } from 'next/navigation';
-
-interface PDFTemplate {
-  id: string;
-  name: string;
-  content: string;
-  category: string;
-  usage_count: number;
-  is_favorite: boolean;
-}
-
-interface PDFFile {
-  id: string;
-  filename: string;
-  title: string;
-  file_size: number;
-  created_at: string;
-  downloadUrl: string;
-}
+import { usePDF, type PDFTemplate } from '@/hooks/usePDF';
+import { PDFGenerator } from '@/components/pdf/PDFGenerator';
+import { PDFTemplates } from '@/components/pdf/PDFTemplates';
+import { PDFList } from '@/components/pdf/PDFList';
+import { PDFTemplateModal } from '@/components/pdf/PDFTemplateModal';
+import { PDFPreviewModal } from '@/components/pdf/PDFPreviewModal';
 
 export default function PDFPage() {
   const { refreshKey } = usePDFRefresh();
   const { showToast } = useToast();
-  const searchParams = useSearchParams();
-  const highlightId = searchParams.get('id');
-  
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [generatingAI, setGeneratingAI] = useState(false);
-  
-  // Templates
-  const [templates, setTemplates] = useState<PDFTemplate[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<PDFTemplate | null>(null);
-  const [templateName, setTemplateName] = useState('');
-  const [templateContent, setTemplateContent] = useState('');
-  const [templateCategory, setTemplateCategory] = useState('');
-  
-  // Preview Modal
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  
-  // PDF Files
-  const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);
-  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
 
-  const categories = [
-    'Faktura VAT',
-    'Oferta handlowa',
-    'Umowa',
-    'Raport miesięczny',
-    'Notatka',
-    'Protokół',
-    'Specyfikacja',
-    'Potwierdzenie',
-    'Inne'
-  ];
-
-  const fetchTemplates = useCallback(async () => {
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        console.error('❌ No auth token found for PDF templates');
-        setTemplates([]);
-        return;
-      }
-      
-      console.log('🔄 Fetching PDF templates...');
-      const response = await fetch('http://localhost:3001/api/pdf/templates', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ PDF Templates fetched:', data);
-        setTemplates(Array.isArray(data) ? data : []);
-      } else {
-        console.error('❌ PDF Templates fetch failed:', response.status);
-        setTemplates([]);
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch PDF templates:', error);
-      setTemplates([]);
-    }
-  }, []);
-
-  const fetchPDFFiles = useCallback(async () => {
-    try {
-      setLoadingFiles(true);
-      const token = await getAccessToken();
-      if (!token) {
-        console.error('❌ No auth token found for PDF files');
-        setPdfFiles([]);
-        setLoadingFiles(false);
-        return;
-      }
-      
-      console.log('🔄 Fetching PDF files...');
-      const response = await fetch('http://localhost:3001/api/pdf/list', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ PDF files fetched:', data);
-        setPdfFiles(data.pdfs || []);
-      } else {
-        console.error('❌ PDF files fetch failed:', response.status);
-        setPdfFiles([]);
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch PDF files:', error);
-      setPdfFiles([]);
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const user = await getCurrentUser();
-      if (!user) {
-        showToast('Zaloguj się aby korzystać z funkcji PDF', 'error');
-        setIsAuthenticated(false);
-        return;
-      }
-      setIsAuthenticated(true);
-      fetchTemplates();
-      fetchPDFFiles();
-    };
-    checkAuth();
-    // Also refetch PDF files when refreshKey changes
-    // (refreshKey increments when a PDF is generated via chat)
-    // Only fetchPDFFiles, not templates, on refreshKey change
-    // (templates are not affected by PDF generation)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchTemplates, fetchPDFFiles, showToast, refreshKey]);
-
-  // Scroll to highlighted PDF when loaded
-  useEffect(() => {
-    if (highlightId && pdfFiles.length > 0 && !loadingFiles) {
-      setTimeout(() => {
-        const element = document.getElementById(`pdf-${highlightId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('ring-4', 'ring-indigo-500', 'ring-offset-2');
-          setTimeout(() => {
-            element.classList.remove('ring-4', 'ring-indigo-500', 'ring-offset-2');
-          }, 3000);
-        }
-      }, 300);
-    }
-  }, [highlightId, pdfFiles, loadingFiles]);
-
-  const handleGenerateAIContent = async () => {
-    if (!templateCategory) {
-      showToast('Wybierz kategorię przed generowaniem', 'error');
-      return;
-    }
-
-    try {
-      setGeneratingAI(true);
-      const token = await getAccessToken();
-      
-      if (!token) {
-        showToast('Brak autoryzacji, zaloguj się ponownie', 'error');
-        return;
-      }
-      
-      const response = await fetch('http://localhost:3001/api/pdf/templates/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          category: templateCategory,
-          context: templateName
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTemplateContent(data.content);
-        showToast('Treść wygenerowana przez AI!', 'success');
-      } else {
-        const error = await response.json().catch(() => ({}));
-        showToast(error.error || 'Błąd podczas generowania treści', 'error');
-      }
-    } catch (error) {
-      console.error('Generate AI content error:', error);
-      showToast('Błąd podczas generowania treści', 'error');
-    } finally {
-      setGeneratingAI(false);
-    }
-  };
-
-  const handleSaveTemplate = async () => {
-    if (!templateName || !templateContent) {
-      showToast('Wypełnij nazwę i treść szablonu', 'error');
-      return;
-    }
-
-    try {
-      const token = await getAccessToken();
-      const url = editingTemplate 
-        ? `http://localhost:3001/api/pdf/templates/${editingTemplate.id}`
-        : 'http://localhost:3001/api/pdf/templates';
-      
-      const response = await fetch(url, {
-        method: editingTemplate ? 'PUT' : 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: templateName,
-          content: templateContent,
-          category: templateCategory || 'Inne'
-        })
-      });
-
-      if (response.ok) {
-        showToast(editingTemplate ? 'Szablon zaktualizowany' : 'Szablon utworzony', 'success');
-        setShowTemplateModal(false);
-        resetTemplateForm();
-        fetchTemplates();
-      } else {
-        showToast('Błąd podczas zapisywania szablonu', 'error');
-      }
-    } catch (error) {
-      console.error('Save template error:', error);
-      showToast('Błąd podczas zapisywania szablonu', 'error');
-    }
-  };
-
-  const handleDeleteTemplate = async (id: string) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten szablon?')) return;
-
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(`http://localhost:3001/api/pdf/templates/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        showToast('Szablon usunięty', 'success');
-        fetchTemplates();
-      } else {
-        showToast('Błąd podczas usuwania szablonu', 'error');
-      }
-    } catch (error) {
-      console.error('Delete template error:', error);
-      showToast('Błąd podczas usuwania szablonu', 'error');
-    }
-  };
-
-  const handleUseTemplate = async (template: PDFTemplate) => {
-    setTitle(template.name);
-    setContent(template.content);
-    showToast(`Użyto szablonu: ${template.name}`, 'success');
-    
-    try {
-      const token = await getAccessToken();
-      await fetch(`http://localhost:3001/api/pdf/templates/${template.id}/use`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      fetchTemplates();
-    } catch (error) {
-      console.error('Failed to update template usage:', error);
-    }
-  };
+  const {
+    title,
+    content,
+    generating,
+    isAuthenticated,
+    highlightId,
+    templates,
+    pdfFiles,
+    loadingFiles,
+    setTitle,
+    setContent,
+    generatePDF,
+    downloadPDF,
+    deletePDF,
+    useTemplate,
+    deleteTemplate,
+    refreshTemplates,
+  } = usePDF({ refreshKey });
 
   const handleGeneratePDF = async () => {
-    if (!title || !content) {
-      showToast('Wypełnij tytuł i treść dokumentu', 'error');
-      return;
-    }
-
-    try {
-      setGenerating(true);
-      const token = await getAccessToken();
-      
-      const response = await fetch('http://localhost:3001/api/pdf/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title,
-          content,
-          filename: title
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        showToast('PDF wygenerowany pomyślnie!', 'success');
-        setTitle('');
-        setContent('');
-        fetchPDFFiles();
-        
-        // Auto download
-        const downloadUrl = `http://localhost:3001${data.pdf.downloadUrl}`;
-        const downloadResponse = await fetch(downloadUrl, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const blob = await downloadResponse.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = data.pdf.filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        const error = await response.json();
-        showToast(error.error || 'Błąd podczas generowania PDF', 'error');
-      }
-    } catch (error) {
-      console.error('Generate PDF error:', error);
-      showToast('Błąd podczas generowania PDF', 'error');
-    } finally {
-      setGenerating(false);
+    const success = await generatePDF();
+    if (success) {
+      showToast('PDF wygenerowany pomyślnie!', 'success');
     }
   };
 
-  const handleDownloadPDF = async (pdf: PDFFile) => {
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(`http://localhost:3001${pdf.downloadUrl}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = pdf.filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Download PDF error:', error);
-      showToast('Błąd podczas pobierania PDF', 'error');
-    }
+  const handleDownloadPDF = async (pdf: any) => {
+    await downloadPDF(pdf);
   };
 
   const handleDeletePDF = async (id: string) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten plik PDF?')) return;
-
-    try {
-      const token = await getAccessToken();
-      const response = await fetch(`http://localhost:3001/api/pdf/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        showToast('PDF usunięty', 'success');
-        fetchPDFFiles();
-      } else {
-        showToast('Błąd podczas usuwania PDF', 'error');
-      }
-    } catch (error) {
-      console.error('Delete PDF error:', error);
-      showToast('Błąd podczas usuwania PDF', 'error');
-    }
+    await deletePDF(id);
+    showToast('PDF usunięty', 'success');
   };
 
-  const openTemplateModal = (template?: PDFTemplate) => {
-    if (template) {
-      setEditingTemplate(template);
-      setTemplateName(template.name);
-      setTemplateContent(template.content);
-      setTemplateCategory(template.category);
-    } else {
-      resetTemplateForm();
-    }
+  const handleUseTemplate = async (template: PDFTemplate) => {
+    await useTemplate(template);
+    showToast(`Użyto szablonu: ${template.name}`, 'success');
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    await deleteTemplate(id);
+    showToast('Szablon usunięty', 'success');
+  };
+
+  const handleEditTemplate = (template: PDFTemplate) => {
+    setEditingTemplateId(template.id);
     setShowTemplateModal(true);
   };
 
-  const resetTemplateForm = () => {
-    setEditingTemplate(null);
-    setTemplateName('');
-    setTemplateContent('');
-    setTemplateCategory('');
+  const handleCreateTemplate = () => {
+    setEditingTemplateId(null);
+    setShowTemplateModal(true);
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  };
-
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleString('pl-PL', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const handleTemplateSaved = () => {
+    refreshTemplates();
+    showToast(
+      editingTemplateId ? 'Szablon zaktualizowany' : 'Szablon utworzony',
+      'success'
+    );
   };
 
   if (!isAuthenticated) {
@@ -426,7 +87,18 @@ export default function PDFPage() {
       <div className="p-6">
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-gray-600">Zaloguj się aby korzystać z generatora PDF</p>
+            <div className="mx-auto max-w-md space-y-4">
+              <div className="mb-4 text-6xl">🔒</div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Wymagane logowanie
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Zaloguj się aby korzystać z generatora PDF
+              </p>
+              <Button onClick={() => (window.location.href = '/auth')}>
+                Przejdź do logowania
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -445,266 +117,58 @@ export default function PDFPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* PDF Generator */}
         <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Nowy dokument PDF</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                label="Tytuł dokumentu"
-                placeholder="Np. Faktura VAT #2024-001"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-
-              <Textarea
-                label="Treść dokumentu"
-                placeholder="Wprowadź treść lub użyj AI do wygenerowania..."
-                rows={14}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-              />
-
-              <div className="flex items-center justify-between gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowPreviewModal(true)}
-                  disabled={!content}
-                >
-                  <Eye className="mr-2 h-4 w-4" />
-                  Podgląd
-                </Button>
-                <Button 
-                  onClick={handleGeneratePDF} 
-                  disabled={generating || !title || !content}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {generating ? 'Generowanie...' : 'Generuj PDF'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <PDFGenerator
+            title={title}
+            content={content}
+            generating={generating}
+            onTitleChange={setTitle}
+            onContentChange={setContent}
+            onGenerate={handleGeneratePDF}
+            onPreview={() => setShowPreviewModal(true)}
+          />
         </div>
 
+        {/* Sidebar */}
         <div className="space-y-6">
-          {/* Templates */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Szablony</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => openTemplateModal()}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {templates.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">Brak szablonów</p>
-              ) : (
-                templates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="group flex items-center justify-between p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <button
-                      onClick={() => handleUseTemplate(template)}
-                      className="flex-1 text-left"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-500" />
-                        <span className="text-sm font-medium">{template.name}</span>
-                        {template.is_favorite && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
-                      </div>
-                      <p className="text-xs text-gray-400 ml-6">
-                        {template.category} • Użyto {template.usage_count}x
-                      </p>
-                    </button>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openTemplateModal(template)}
-                      >
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteTemplate(template.id)}
-                      >
-                        <Trash2 className="h-3 w-3 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <PDFTemplates
+            templates={templates}
+            onUseTemplate={handleUseTemplate}
+            onEditTemplate={handleEditTemplate}
+            onDeleteTemplate={handleDeleteTemplate}
+            onCreateNew={handleCreateTemplate}
+          />
 
-          {/* Recent PDFs */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Ostatnie PDF</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {loadingFiles ? (
-                <p className="text-sm text-gray-500 text-center py-4">Ładowanie...</p>
-              ) : pdfFiles.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">Brak plików</p>
-              ) : (
-                pdfFiles.slice(0, 5).map((pdf) => (
-                  <div
-                    key={pdf.id}
-                    id={`pdf-${pdf.id}`}
-                    className="rounded-lg border border-gray-200 p-3 dark:border-gray-800 transition-all duration-300"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {pdf.title}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatFileSize(pdf.file_size)}
-                        </p>
-                      </div>
-                      <Badge variant="success">Gotowe</Badge>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <p className="text-xs text-gray-400">{formatDate(pdf.created_at)}</p>
-                      <div className="flex gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDownloadPDF(pdf)}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDeletePDF(pdf.id)}
-                        >
-                          <Trash2 className="h-3 w-3 text-red-500" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+          <PDFList
+            files={pdfFiles}
+            loading={loadingFiles}
+            highlightId={highlightId}
+            maxItems={5}
+            onDownload={handleDownloadPDF}
+            onDelete={handleDeletePDF}
+          />
         </div>
       </div>
 
       {/* Template Modal */}
-      <Modal
+      <PDFTemplateModal
         isOpen={showTemplateModal}
-        onClose={() => {
-          setShowTemplateModal(false);
-          resetTemplateForm();
-        }}
-        title={editingTemplate ? 'Edytuj szablon' : 'Nowy szablon'}
-      >
-        <div className="space-y-4">
-          <Input
-            label="Nazwa szablonu"
-            placeholder="Np. Faktura standardowa"
-            value={templateName}
-            onChange={(e) => setTemplateName(e.target.value)}
-          />
-          
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Kategoria
-            </label>
-            <select 
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-              value={templateCategory}
-              onChange={(e) => setTemplateCategory(e.target.value)}
-            >
-              <option value="">Wybierz kategorię</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Treść szablonu
-            </label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleGenerateAIContent}
-              disabled={generatingAI || !templateCategory}
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {generatingAI ? 'Generowanie...' : 'Wygeneruj AI'}
-            </Button>
-          </div>
-
-          <Textarea
-            placeholder="Treść dokumentu..."
-            rows={12}
-            value={templateContent}
-            onChange={(e) => setTemplateContent(e.target.value)}
-          />
-
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowTemplateModal(false);
-                resetTemplateForm();
-              }}
-            >
-              Anuluj
-            </Button>
-            <Button onClick={handleSaveTemplate}>
-              {editingTemplate ? 'Zaktualizuj' : 'Utwórz'} szablon
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onClose={() => setShowTemplateModal(false)}
+        onSave={handleTemplateSaved}
+        editingTemplateId={editingTemplateId}
+        templates={templates}
+      />
 
       {/* Preview Modal */}
-      <Modal
+      <PDFPreviewModal
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
-        title={`Podgląd: ${title || 'Dokument PDF'}`}
-      >
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 max-h-[60vh] overflow-y-auto">
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">
-                {title}
-              </h2>
-              <div className="whitespace-pre-wrap text-gray-700 dark:text-gray-300 font-mono text-sm">
-                {content}
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowPreviewModal(false)}
-            >
-              Zamknij
-            </Button>
-            <Button 
-              onClick={() => {
-                setShowPreviewModal(false);
-                handleGeneratePDF();
-              }}
-              disabled={generating}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Generuj PDF
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        onGenerate={handleGeneratePDF}
+        title={title}
+        content={content}
+        generating={generating}
+      />
     </div>
   );
 }

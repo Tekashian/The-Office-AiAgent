@@ -211,14 +211,12 @@ router.post('/templates/generate', authenticateUser, async (req: AuthenticatedRe
     console.log(`🤖 Generating PDF template for category: ${category}, user: ${userId}`);
     console.log(`📝 Context:`, context);
     
-    if (typeof aiService.generatePDFContent !== 'function') {
-      console.error('❌ generatePDFContent method not found on aiService');
-      res.status(500).json({ error: 'AI service method not available' });
-      return;
-    }
+    // Use generateText method to create PDF content
+    const prompt = context 
+      ? `Generate professional PDF content for category: ${category}. Context: ${context}`
+      : `Generate professional PDF content for category: ${category}`;
     
-    // Pass userId to enable user context
-    const content = await aiService.generatePDFContent(category, context, userId);
+    const content = await aiService.generateText(prompt, userId);
     
     console.log('✅ PDF template generated successfully with user context');
     console.log('📄 Content length:', content.length);

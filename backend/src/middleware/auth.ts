@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../config/supabase';
+import { AuthenticationError } from '../utils/errors';
 
 export interface AuthenticatedRequest extends Request {
   userId?: string;
@@ -7,9 +8,9 @@ export interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Middleware to authenticate requests using Supabase JWT token
- * Extracts token from Authorization header and validates it
- * Adds userId and userEmail to request object
+ * Authentication Middleware
+ * Validates JWT token and attaches user info to request
+ * @throws {AuthenticationError} if token is invalid or missing
  */
 export const authenticateUser = async (
   req: AuthenticatedRequest,
@@ -17,47 +18,38 @@ export const authenticateUser = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Extract token from Authorization header
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ 
-        error: 'Unauthorized', 
-        message: 'No authorization token provided' 
-      });
-      return;
+    const token = extractToken(req);
+
+    if (!token) {
+      throw new AuthenticationError('No authorization token provided');
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const user = await validateToken(token);
 
-    // Verify token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      res.status(401).json({ 
-        error: 'Unauthorized', 
-        message: 'Invalid or expired token' 
-      });
-      return;
-    }
-
-    // Add user info to request
+    // Attach user info to request
     req.userId = user.id;
     req.userEmail = user.email;
 
     next();
   } catch (error) {
+    if (error instanceof AuthenticationError) {
+      res.status(error.statusCode).json({
+        success: false,
+        message: error.message,
+      });
+      return;
+    }
+    
     console.error('Authentication error:', error);
-    res.status(500).json({ 
-      error: 'Authentication failed', 
-      message: 'Internal server error during authentication' 
+    res.status(500).json({
+      success: false,
+      message: 'Authentication failed',
     });
-    return;
   }
 };
 
 /**
- * Optional authentication middleware
+ * Optional Authentication Middleware
  * Adds user info if token is present but doesn't block if missing
  */
 export const optionalAuth = async (
@@ -66,21 +58,47 @@ export const optionalAuth = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user } } = await supabase.auth.getUser(token);
-      
-      if (user) {
-        req.userId = user.id;
-        req.userEmail = user.email;
-      }
+    const token = extractToken(req);
+
+    if (token) {
+      const user = await validateToken(token);
+      req.userId = user.id;
+      req.userEmail = user.email;
     }
 
     next();
   } catch (error) {
+    // Silently fail for optional auth
     console.error('Optional auth error:', error);
     next();
   }
 };
+
+/**
+ * Extract JWT token from Authorization header
+ * @private
+ */
+function extractToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  return authHeader.substring(7); // Remove 'Bearer ' prefix
+}
+
+/**
+ * Validate JWT token with Supabase
+ * @private
+ * @throws {AuthenticationError} if token is invalid
+ */
+async function validateToken(token: string) {
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    throw new AuthenticationError('Invalid or expired token');
+  }
+
+  return user;
+}

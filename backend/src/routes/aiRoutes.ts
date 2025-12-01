@@ -1,9 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { authenticateUser } from '../middleware/auth';
-import { AIService } from '../services/aiService';
+import aiService from '../services/aiService';
 
 const router = Router();
-const aiService = new AIService();
 
 // Generate AI content
 router.post('/generate', authenticateUser, async (req: Request, res: Response): Promise<void> => {

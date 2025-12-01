@@ -1,384 +1,294 @@
 import axios from 'axios';
-import { AIRequest, AIResponse } from '../types';
-import { supabaseAdmin } from '../config/supabase';
+import { AIRequestConfig, AIResponseData } from '../types/ai.types';
+import { ExternalServiceError, ValidationError } from '../utils/errors';
+import { logger } from '../utils/logger';
+import { config } from '../config/config';
+import userContextService from './userContextService';
+import { supabase } from '../config/supabase';
 
-export class AIService {
-  private apiKey: string;
-  private apiUrl: string;
-  private model: string;
+/**
+ * AI Service
+ * Handles communication with Gemini AI API
+ */
+class AIService {
+  private readonly apiKey: string;
+  private readonly apiUrl: string;
+  private readonly model: string;
 
   constructor() {
-    this.apiKey = process.env.AI_API_KEY || '';
-    this.apiUrl = process.env.AI_API_URL || '';
-    this.model = process.env.AI_MODEL || 'gemini-2.5-flash';
-    
-    // Debug logging
-    console.log('🔧 AIService initialized:');
-    console.log('  - API Key:', this.apiKey ? `${this.apiKey.substring(0, 10)}...` : 'NOT SET');
-    console.log('  - API URL:', this.apiUrl || 'NOT SET');
-    console.log('  - Model:', this.model);
+    this.apiKey = config.ai.apiKey;
+    this.apiUrl = config.ai.apiUrl;
+    this.model = config.ai.model;
+
+    this.logInitialization();
   }
 
   /**
-   * Get user context from database and format it for AI prompts
+   * Log initialization details
+   * @private
    */
-  async getUserContext(userId: string): Promise<string> {
-    try {
-      const { data: profile, error } = await supabaseAdmin
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (error || !profile) {
-        console.log('⚠️ No user context found for:', userId);
-        return '';
-      }
-
-      const contextParts: string[] = [];
-
-      if (profile.full_name) {
-        contextParts.push(`Użytkownik: ${profile.full_name}`);
-      }
-
-      if (profile.job_title) {
-        contextParts.push(`Stanowisko: ${profile.job_title}`);
-      }
-
-      if (profile.department) {
-        contextParts.push(`Dział: ${profile.department}`);
-      }
-
-      if (profile.company) {
-        contextParts.push(`Firma: ${profile.company}`);
-      }
-
-      if (profile.company_description) {
-        contextParts.push(`O firmie: ${profile.company_description}`);
-      }
-
-      if (profile.work_description) {
-        contextParts.push(`Obowiązki zawodowe: ${profile.work_description}`);
-      }
-
-      if (profile.ai_context_notes) {
-        contextParts.push(`Preferencje użytkownika: ${profile.ai_context_notes}`);
-      }
-
-      // Dodaj preferencje komunikacji
-      if (profile.preferences) {
-        const prefs = profile.preferences as any;
-        
-        if (prefs.communication_tone) {
-          const toneMap: any = {
-            'professional': 'profesjonalny i formalny',
-            'friendly-professional': 'przyjazny ale profesjonalny',
-            'casual': 'swobodny i nieformalny',
-            'formal': 'bardzo formalny',
-            'friendly': 'przyjazny i ciepły'
-          };
-          contextParts.push(`Preferowany ton: ${toneMap[prefs.communication_tone] || prefs.communication_tone}`);
-        }
-
-        if (prefs.language) {
-          contextParts.push(`Język: ${prefs.language === 'pl' ? 'Polski' : prefs.language}`);
-        }
-      }
-
-      if (contextParts.length === 0) {
-        return '';
-      }
-
-      const contextString = `\n\n=== KONTEKST UŻYTKOWNIKA ===\n${contextParts.join('\n')}\n=== KONIEC KONTEKSTU ===\n\n`;
-      console.log('✅ User context loaded:', contextParts.length, 'fields');
-      return contextString;
-    } catch (error) {
-      console.error('❌ Error loading user context:', error);
-      return '';
-    }
+  private logInitialization(): void {
+    logger.info('AIService initialized', {
+      apiUrl: this.apiUrl,
+      model: this.model,
+      apiKeyConfigured: !!this.apiKey,
+    });
   }
 
   /**
-   * Send a request to Gemini AI API
+   * Send request to Gemini AI API
    */
-  async sendRequest(request: AIRequest): Promise<AIResponse> {
+  async sendRequest(config: AIRequestConfig): Promise<AIResponseData> {
     try {
-      if (!this.apiKey || !this.apiUrl) {
-        throw new Error('Gemini API credentials not configured');
+      let prompt = config.prompt;
+
+      // Add user context if requested
+      if (config.userId && config.includeContext !== false) {
+        const userContext = await userContextService.getUserContext(config.userId);
+        if (userContext) {
+          prompt = userContext + prompt;
+        }
       }
 
-      // Gemini API expects this structure
+      // Build Gemini API request
       const requestBody = {
         contents: [
           {
-            parts: [
-              {
-                text: request.prompt,
-              },
-            ],
+            parts: [{ text: prompt }],
           },
         ],
         generationConfig: {
-          temperature: request.temperature || 0.7,
-          maxOutputTokens: request.maxTokens || 2000,
+          temperature: config.temperature || 0.7,
+          maxOutputTokens: config.maxTokens || 2000,
           topP: 0.95,
           topK: 40,
         },
       };
 
-      // Gemini uses header-based authentication
+      // Call Gemini API
       const response = await axios.post(this.apiUrl, requestBody, {
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': this.apiKey,
         },
+        timeout: 30000, // 30 second timeout
       });
 
-      console.log('🔍 Full Gemini API response:', JSON.stringify(response.data, null, 2).substring(0, 1000));
-
-      // Check for blocked content
-      if (response.data.candidates?.[0]?.finishReason === 'SAFETY') {
-        console.error('❌ Content blocked by Gemini safety filters');
-        throw new Error('Content generation blocked by safety filters');
-      }
-
-      // Extract text from Gemini response structure
-      const generatedText =
-        response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-      if (!generatedText) {
-        console.error('❌ No text in Gemini response');
-        console.error('Candidates:', JSON.stringify(response.data.candidates));
-        throw new Error('Gemini returned empty response');
-      }
-
-      return {
-        content: generatedText,
-        model: this.model,
-        tokensUsed: response.data.usageMetadata?.totalTokenCount,
-      };
+      return this.parseResponse(response.data);
     } catch (error) {
-      console.error('Gemini API request failed:', error);
-      if (axios.isAxiosError(error) && error.response) {
-        console.error('Response data:', error.response.data);
-      }
-      throw error;
+      this.handleError(error);
+      throw error; // TypeScript requires this after handleError
     }
+  }
+
+  /**
+   * Parse Gemini API response
+   * @private
+   * @throws {ExternalServiceError} if response is invalid or blocked
+   */
+  private parseResponse(data: any): AIResponseData {
+    // Check for safety blocking
+    if (data.candidates?.[0]?.finishReason === 'SAFETY') {
+      logger.warn('Content blocked by Gemini safety filters');
+      throw new ExternalServiceError(
+        'Gemini AI',
+        'Content blocked by safety filters'
+      );
+    }
+
+    // Extract generated text
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    if (!content) {
+      logger.error('Empty response from Gemini AI', { candidates: data.candidates });
+      throw new ExternalServiceError('Gemini AI', 'Empty response from AI service');
+    }
+
+    logger.debug('AI response parsed successfully', {
+      contentLength: content.length,
+      finishReason: data.candidates?.[0]?.finishReason,
+    });
+
+    return {
+      content,
+      finishReason: data.candidates?.[0]?.finishReason,
+    };
+  }
+
+  /**
+   * Handle API errors
+   * @private
+   */
+  private handleError(error: any): never {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      const errorMessage = error.response?.data?.error?.message || error.message;
+
+      logger.error('AI API error', error, { status, message: errorMessage });
+
+      if (status === 400) {
+        throw new ValidationError(`AI API error: ${errorMessage}`);
+      }
+      if (status === 401 || status === 403) {
+        throw new ExternalServiceError('Gemini AI', 'Authentication failed');
+      }
+      if (status === 429) {
+        throw new ExternalServiceError('Gemini AI', 'Rate limit exceeded');
+      }
+
+      throw new ExternalServiceError('Gemini AI', errorMessage);
+    }
+
+    logger.error('Unknown AI error', error);
+    throw new ExternalServiceError('Gemini AI', 'Unknown error occurred');
+  }
+
+  /**
+   * Generate text based on prompt
+   */
+  async generateText(prompt: string, userId?: string): Promise<string> {
+    const response = await this.sendRequest({
+      prompt,
+      userId,
+      includeContext: true,
+    });
+
+    return response.content;
   }
 
   /**
    * Process a task with AI
    */
-  async processTask(taskDescription: string, context?: any): Promise<string> {
+  async processTask(description: string, context?: string): Promise<string> {
+    const prompt = context
+      ? `Task: ${description}\nContext: ${context}`
+      : `Task: ${description}`;
+
     const response = await this.sendRequest({
-      prompt: taskDescription,
-      context,
+      prompt,
+      includeContext: false,
     });
+
     return response.content;
   }
 
   /**
    * Analyze text with AI
    */
-  async analyzeText(text: string, analysisType: string): Promise<any> {
+  async analyzeText(text: string, analysisType: string): Promise<string> {
     const prompt = `Analyze the following text for ${analysisType}:\n\n${text}`;
-    const response = await this.sendRequest({ prompt });
+
+    const response = await this.sendRequest({
+      prompt,
+      includeContext: false,
+    });
+
     return response.content;
   }
 
   /**
-   * Chat with conversation history (multi-turn)
+   * Generate content with specific configuration
    */
-  async chat(
-    currentMessage: string,
-    conversationHistory?: Array<{ role: 'user' | 'model'; text: string }>
-  ): Promise<string> {
-    try {
-      const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  async generate(config: {
+    prompt: string;
+    type?: string;
+    userId?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }): Promise<string> {
+    const response = await this.sendRequest({
+      prompt: config.prompt,
+      userId: config.userId,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      includeContext: true,
+    });
 
-      // Add conversation history
-      if (conversationHistory && conversationHistory.length > 0) {
-        conversationHistory.forEach((msg) => {
-          contents.push({
-            role: msg.role,
-            parts: [{ text: msg.text }],
-          });
-        });
+    return response.content;
+  }
+
+  /**
+   * Chat with AI (conversational)
+   */
+  async chat(message: string, conversationHistory: any[]): Promise<string> {
+    const historyContext = conversationHistory
+      .slice(-5) // Last 5 messages for context
+      .map((msg: any) => `${msg.role}: ${msg.content}`)
+      .join('\n');
+
+    const prompt = historyContext
+      ? `Previous conversation:\n${historyContext}\n\nUser: ${message}`
+      : `User: ${message}`;
+
+    const response = await this.sendRequest({
+      prompt,
+      includeContext: false,
+    });
+
+    return response.content;
+  }
+
+  /**
+   * Get user context for AI
+   */
+  async getUserContext(userId: string): Promise<string> {
+    try {
+      logger.debug('Fetching user context', { userId });
+
+      const { data, error } = await supabase
+        .from('user_context')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        logger.warn('No user context found', { userId, error: error.message });
+        return '';
       }
 
-      // Add current message
-      contents.push({
-        role: 'user',
-        parts: [{ text: currentMessage }],
-      });
+      const context = [
+        data.full_name ? `Name: ${data.full_name}` : '',
+        data.role ? `Role: ${data.role}` : '',
+        data.department ? `Department: ${data.department}` : '',
+        data.preferences ? `Preferences: ${JSON.stringify(data.preferences)}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
 
-      const requestBody = {
-        contents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000,
-        },
-      };
-
-      const response = await axios.post(this.apiUrl, requestBody, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': this.apiKey,
-        },
-      });
-
-      return response.data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      logger.debug('User context retrieved', { userId, contextLength: context.length });
+      return context;
     } catch (error) {
-      console.error('Gemini chat request failed:', error);
-      throw error;
+      logger.error('Error fetching user context', error, { userId });
+      return '';
     }
   }
 
   /**
-   * Generate email template based on category with user context
+   * Generate email template with AI
    */
-  async generateEmailTemplate(
-    category: string, 
-    additionalContext?: string,
-    userId?: string
-  ): Promise<{ subject: string; body: string }> {
-    try {
-      // Load user context if userId provided
-      let userContext = '';
-      if (userId) {
-        userContext = await this.getUserContext(userId);
-      }
+  async generateEmailTemplate(params: {
+    subject: string;
+    purpose: string;
+    tone?: string;
+    variables?: string[];
+  }): Promise<string> {
+    const { subject, purpose, tone = 'professional', variables = [] } = params;
 
-      const prompt = `${userContext}Create a professional Polish business email.
-${additionalContext ? `Message: ${additionalContext}` : ''}
+    const prompt = `Generate an email template with the following specifications:
+Subject: ${subject}
+Purpose: ${purpose}
+Tone: ${tone}
+${variables.length > 0 ? `Variables to include: ${variables.join(', ')}` : ''}
 
-Format:
-Szanowni Państwo,
+Create a professional email template that includes placeholders for personalization.
+Format variables as {{variableName}}.`;
 
-[Main content - 2-3 sentences max]
+    const response = await this.sendRequest({
+      prompt,
+      includeContext: false,
+    });
 
-Z poważaniem,
-{{sender_name}}
-{{sender_position}}
-{{company_name}}
-
-Return ONLY valid JSON:
-{"subject": "short subject", "body": "Szanowni Państwo,\\n\\n[content]\\n\\nZ poważaniem,\\n{{sender_name}}\\n{{sender_position}}\\n{{company_name}}"}
-
-Rules: Polish language, formal tone, use \\n\\n between paragraphs, \\n in signature, max 150 words.`;
-
-      const response = await this.sendRequest({
-        prompt,
-        temperature: 0.3,
-        maxTokens: 800
-      });
-
-      // Parse AI response - remove markdown code blocks if present
-      let jsonStr = typeof response === 'string' ? response : response.content || '';
-      
-      console.log('🤖 Raw AI response:', jsonStr.substring(0, 200));
-      
-      jsonStr = jsonStr.trim();
-      
-      if (!jsonStr) {
-        throw new Error('AI returned empty response');
-      }
-      
-      if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      }
-      
-      console.log('📝 Cleaned JSON string:', jsonStr.substring(0, 200));
-      
-      const parsed = JSON.parse(jsonStr);
-      
-      if (!parsed.subject || !parsed.body) {
-        throw new Error('AI response missing subject or body');
-      }
-      
-      return {
-        subject: parsed.subject,
-        body: parsed.body
-      };
-    } catch (error) {
-      console.error('Template generation failed:', error);
-      if (error instanceof SyntaxError) {
-        throw new Error('AI returned invalid JSON format');
-      }
-      throw new Error('Failed to generate email template');
-    }
-  }
-
-  /**
-   * Generate PDF content based on category with user context
-   */
-  async generatePDFContent(
-    category: string, 
-    additionalContext?: string,
-    userId?: string
-  ): Promise<string> {
-    try {
-      // Load user context if userId provided
-      let userContext = '';
-      if (userId) {
-        userContext = await this.getUserContext(userId);
-      }
-
-      const prompt = `${userContext}Generate professional PDF document content for the category: "${category}".
-${additionalContext ? `Additional context: ${additionalContext}` : ''}
-
-Requirements:
-- Create content in Polish
-- Include appropriate sections for this document type
-- Use placeholders like {{company_name}}, {{date}}, {{client_name}} where appropriate
-- Make it professional and well-structured
-- Keep it concise (max 500 words)
-${userContext ? '- Use the USER CONTEXT above to personalize the content and tone' : ''}
-
-Category-specific guidelines:
-- Faktura VAT: Include header, company details, items table, total, payment info
-- Oferta handlowa: Include introduction, offer details, pricing, validity, terms
-- Umowa: Include parties, subject, terms, responsibilities, signatures
-- Raport: Include title, executive summary, main content, conclusions
-
-Return ONLY the document content in plain text format (NO JSON, NO markdown, just the text content).`;
-
-      console.log('🔍 Sending PDF generation request to Gemini...');
-      const response = await this.sendRequest({
-        prompt,
-        temperature: 0.6,
-        maxTokens: 1500
-      });
-
-      console.log('📦 Raw Gemini response:', JSON.stringify(response).substring(0, 300));
-      console.log('📦 Response type:', typeof response);
-      console.log('📦 Response.content:', response.content?.substring(0, 200));
-      
-      // Gemini returns response.content, not the response itself as string
-      let content = '';
-      if (typeof response === 'string') {
-        content = response;
-      } else if (response && response.content) {
-        content = response.content;
-      } else {
-        console.error('❌ Unexpected response structure:', response);
-        throw new Error('AI returned invalid response structure');
-      }
-      
-      if (!content || content.trim().length === 0) {
-        console.error('❌ Content is empty after extraction');
-        throw new Error('AI returned empty PDF content');
-      }
-      
-      console.log('✅ PDF content extracted, length:', content.length);
-      return content.trim();
-    } catch (error) {
-      console.error('❌ PDF content generation failed:', error);
-      if (error instanceof Error) {
-        throw new Error(`Failed to generate PDF content: ${error.message}`);
-      }
-      throw new Error('Failed to generate PDF content');
-    }
+    return response.content;
   }
 }
 

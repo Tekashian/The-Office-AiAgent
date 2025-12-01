@@ -116,23 +116,18 @@ export default function AgentPage() {
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="h-full flex flex-col">
       {/* Main content */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col p-6 min-h-0">
         <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
           Rozmawiaj z agentem AI i automatyzuj swoje zadania
         </p>
 
-        <Card className="flex flex-1 flex-col">
-        <CardContent className="flex flex-1 flex-col p-0 overflow-hidden">
+        <Card className="flex flex-1 flex-col min-h-0">
+        <CardContent className="flex flex-1 flex-col p-0 min-h-0">
           {/* Messages */}
           <div
-            className="flex-1 space-y-4 p-6 custom-scrollbar"
-            style={{
-              height: '100%',
-              minHeight: 0,
-              overflowY: 'auto',
-            }}
+            className="flex-1 space-y-4 p-6 overflow-y-auto custom-scrollbar"
           >
             {messages.map((message) => (
               <div

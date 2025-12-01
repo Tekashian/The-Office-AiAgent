@@ -39,7 +39,6 @@ cloud "CLOUD_ICON External Services" as ExtCloud #FFECB3 {
 
 ' Frontend Layer
 package "FRONTEND_ICON Frontend (Next.js 15)" #E3F2FD {
-    component "🧩 React UI Components" as ReactUI #BBDEFB
     package "Page Routes" as Pages #E1F5FE {
         component "💬 Agent Chat Page" as AgentPage #B3E5FC
         component "📥 Email Page" as EmailPage #B3E5FC
@@ -50,9 +49,21 @@ package "FRONTEND_ICON Frontend (Next.js 15)" #E3F2FD {
         component "⚙️ Settings Page" as SettingsPage #B3E5FC
         component "🔔 Notifications Page" as NotifPage #B3E5FC
     }
+    
+    package "UI Components" as UIComponents #E1F5FE {
+        component "🧩 Shared Components" as SharedUI #B3E5FC
+        component "🔔 Notification Components" as NotifComponents #B3E5FC
+    }
+    
+    package "Custom Hooks" as Hooks #E1F5FE {
+        component "🪝 useNotifications" as useNotifications #B3E5FC
+        component "🪝 Other Hooks" as OtherHooks #B3E5FC
+    }
+    
     component "🔗 API Client (Axios)" as APIClient #90CAF9
     component "🗄️ Supabase Client" as SupabaseFrontend #90CAF9
     component "🔒 Authentication" as AuthFrontend #90CAF9
+    component "🔔 Notification Provider" as NotifProvider #90CAF9
 }
 
 
@@ -60,12 +71,14 @@ package "FRONTEND_ICON Frontend (Next.js 15)" #E3F2FD {
 package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
     component "🚦 Express Server" as ExpressServer #FFE082
     component "🛡️ Auth Middleware" as AuthMiddleware #FFD54F
+    component "📤 Upload Middleware" as UploadMiddleware #FFD54F
     component "❗ Error Handler" as ErrorHandler #FFD54F
     
     package "API Routes" #FFFDE7 {
         component "🤖 Agent Routes" as AgentRoutes #FFF9C4
         component "🧠 AI Routes" as AIRoutes #FFF9C4
         component "📧 Email Routes" as EmailRoutes #FFF9C4
+        component "🔧 Email Config Routes" as EmailConfigRoutes #FFF9C4
         component "📬 Email Inbox Routes" as InboxRoutes #FFF9C4
         component "📑 Email Template Routes" as TemplateRoutes #FFF9C4
         component "📄 PDF Routes" as PDFRoutes #FFF9C4
@@ -87,15 +100,17 @@ package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
         component "⏰ Cron Service" as CronService #A5D6A7
     }
     
-    note right of AgentOrchestrator : Interprets user intent\nand executes tools
+    note right of AgentOrchestrator : Interprets user intent\nand executes tools\nOrchestrates Cron tasks
     note right of AIService : Gemini API integration\nUser context management
     note right of InboxService : IMAP inbox scanning\nAI email analysis\nDraft generation
     note right of ScraperService : Web scraping\nAI-powered extraction
+    note right of CronService : Node-cron wrapper\nTriggers AgentOrchestrator
     
     package "Utilities" #F3E5F5 {
         component "🔐 Encryption Utils" as Encryption #CE93D8
         component "📁 Init Directories" as InitDirs #CE93D8
         component "🧪 Validate Env" as ValidateEnv #CE93D8
+        component "💾 File Storage" as FileStorage #CE93D8
     }
     
     component "🗄️ Supabase Admin Client" as SupabaseBackend #B0BEC5
@@ -111,11 +126,11 @@ database "DB_ICON Supabase PostgreSQL" as SupabaseDB #E0F7FA {
     
     package "Email System" #B2EBF2 {
         component "🔑 user_imap_configs" as imap_tbl #80DEEA
+        component "🔐 user_email_configs" as smtp_tbl #80DEEA
         component "📥 emails_inbox" as inbox_tbl #80DEEA
         component "📝 ai_email_drafts" as drafts_tbl #80DEEA
         component "📤 emails_sent" as sent_tbl #80DEEA
         component "📑 email_templates" as templates_tbl #80DEEA
-        component "🕵️ email_scan_logs" as logs_tbl #80DEEA
     }
     
     package "Document System" #B2EBF2 {
@@ -138,22 +153,29 @@ database "DB_ICON Supabase PostgreSQL" as SupabaseDB #E0F7FA {
 
 ' ============ CONNECTIONS (UPROSZCZONE I KOLOROWE) ============
 
-' Frontend to Backend
-ReactUI -[#1976D2,bold]-> APIClient : HTTP/REST
-APIClient -[#1976D2,bold]-> ExpressServer : API Calls
-ReactUI -[#43A047]-> SupabaseFrontend : Direct DB
+' Frontend Architecture (Senior-Level Organization)
+Pages -[#1976D2]-> Hooks : Uses
+Pages -[#1976D2]-> UIComponents : Renders
+NotifPage -[#1976D2,bold]-> useNotifications : State Management
+NotifPage -[#1976D2]-> NotifComponents : UI Components
+useNotifications -[#1976D2]-> APIClient : API Calls
+NotifComponents -[#1976D2]-> SharedUI : Shared UI
 
-' Frontend Pages
-Pages -[#1976D2]-> ReactUI : Uses
+' Frontend to Backend
+APIClient -[#1976D2,bold]-> ExpressServer : HTTP/REST
+UIComponents -[#43A047]-> SupabaseFrontend : Direct DB
 Pages -[#1976D2]-> AuthFrontend : Auth
+NotifProvider -[#43A047]-> SupabaseFrontend : Subscribe
 
 ' Backend Flow
 ExpressServer -[#FBC02D,bold]-> AuthMiddleware : Auth
 AuthMiddleware -[#FBC02D]-> AgentRoutes
 AuthMiddleware -[#FBC02D]-> AIRoutes
 AuthMiddleware -[#FBC02D]-> EmailRoutes
+AuthMiddleware -[#FBC02D]-> EmailConfigRoutes
 AuthMiddleware -[#FBC02D]-> InboxRoutes
 AuthMiddleware -[#FBC02D]-> TemplateRoutes
+ExpressServer -[#FBC02D]-> UploadMiddleware : Files
 AuthMiddleware -[#FBC02D]-> PDFRoutes
 AuthMiddleware -[#FBC02D]-> ScraperRoutes
 AuthMiddleware -[#FBC02D]-> CronRoutes
@@ -166,11 +188,12 @@ AuthMiddleware -[#FBC02D]-> SearchRoutes
 AgentRoutes -[#388E3C,bold]-> AgentOrchestrator : Process
 AIRoutes -[#388E3C]-> AIService : AI
 EmailRoutes -[#388E3C]-> EmailService : Email
+EmailConfigRoutes -[#388E3C]-> SupabaseBackend : Config
 InboxRoutes -[#388E3C]-> InboxService : Inbox
 TemplateRoutes -[#388E3C]-> AIService : Template
-PDFRoutes -[#388E3C]-> PDFService : PDF
+PDFRoutes -[#388E3C,dashed]-> PDFService : PDF (async)
 PDFRoutes -[#388E3C]-> AIService : AI
-ScraperRoutes -[#388E3C]-> ScraperService : Scrape
+ScraperRoutes -[#388E3C,dashed]-> ScraperService : Scrape (async)
 CronRoutes -[#388E3C]-> CronService : Jobs
 
 ' Agent Orchestrator Orchestration
@@ -178,13 +201,15 @@ AgentOrchestrator -[#8E24AA,bold]-> AIService : Intent
 AgentOrchestrator -[#8E24AA]-> EmailService : Email
 AgentOrchestrator -[#8E24AA]-> PDFService : PDF
 AgentOrchestrator -[#8E24AA]-> ScraperService : Scrape
-AgentOrchestrator -[#8E24AA]-> CronService : Cron
+
+' Cron Service Flow (CORRECTED)
+CronService -[#8E24AA,dashed,bold]-> AgentOrchestrator : Trigger⏰\n(async)
 
 ' Services to External & Database
 AIService -[#FF9800,bold]-> GeminiAPI : API
 AIService -[#00838F]-> SupabaseBackend : Context
 EmailService -[#FF9800]-> Gmail : SMTP
-InboxService -[#FF9800]-> Gmail : IMAP
+InboxService -[#FF9800,dashed]-> Gmail : IMAP (async)
 InboxService -[#00838F]-> AIService : Analyze
 ScraperService -[#FF9800]-> WebSites : HTTP
 ScraperService -[#00838F]-> AIService : Extract
@@ -201,6 +226,7 @@ CronService -[#00838F]-> SupabaseBackend
 SupabaseBackend -[#0288D1,bold]-> profiles_tbl
 SupabaseBackend -[#0288D1]-> chat_tbl
 SupabaseBackend -[#0288D1]-> imap_tbl
+SupabaseBackend -[#0288D1]-> smtp_tbl
 SupabaseBackend -[#0288D1]-> inbox_tbl
 SupabaseBackend -[#0288D1]-> drafts_tbl
 SupabaseBackend -[#0288D1]-> sent_tbl
@@ -216,6 +242,8 @@ EmailService -[#CE93D8]-> Encryption : Decrypt
 InboxService -[#CE93D8]-> Encryption : Decrypt
 ExpressServer -[#CE93D8]-> InitDirs : Init
 ExpressServer -[#CE93D8]-> ValidateEnv : Config
+UploadMiddleware -[#CE93D8]-> FileStorage : Store
+PDFService -[#CE93D8]-> FileStorage : Save
 
 ' Error Handling
 ExpressServer -[#D32F2F,bold]-> ErrorHandler : Errors
@@ -227,6 +255,7 @@ legend right
     | 🛠️ | Backend (Node.js, Express) |
     | 🗄️ | Database (Supabase/PostgreSQL) |
     | ☁️ | External Service (AI, Gmail, Web) |
+    | 🪝 | Custom React Hooks (Business Logic) |
     | Package | Logical grouping |
     | --> | Dependency/Call direction |
     | <color:#1976D2><b>niebieska gruba</b></color> | Frontend → Backend/API komunikacja |
@@ -239,14 +268,17 @@ legend right
     | <color:#0288D1><b>niebieska jasna</b></color> | Backend → tabele bazy danych |
     | <color:#CE93D8>fioletowa jasna</color> | Połączenia z narzędziami pomocniczymi |
     | <color:#D32F2F><b>czerwona gruba</b></color> | Obsługa błędów |
+    | ---> (dashed) | Asynchroniczne operacje (queue-based/long-running) |
   
     **Key Features:**
     • AI-powered office automation
-    • Email management with AI analysis
-    • PDF generation with templates
-    • Web scraping with AI extraction
-    • Scheduled tasks (cron jobs)
+    • Dual email system (IMAP receiving + SMTP sending)
+    • PDF generation with templates + file storage
+    • Web scraping with AI extraction (async)
+    • Scheduled tasks via Agent Orchestrator
+    • Real-time notifications with Supabase
     • Multi-user support with RLS
+    • **Senior-level Frontend: Custom Hooks + Component Composition**
 endlegend
 
 @enduml

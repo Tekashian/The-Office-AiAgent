@@ -43,7 +43,7 @@ class AgentOrchestrator {
     },
     {
       name: 'scrape_website',
-      description: 'Extract data from a website. Use when user wants to scrape/extract/get data from a URL.',
+      description: 'Extract data from a website. Use when user wants to scrape/extract/get/fetch/download/pobierz/zeskrapuj data from a URL or website. Keywords: scrape, pobierz, extract, dane ze strony, fetch, website data.',
       parameters: {
         url: 'string - website URL to scrape',
         selectors: 'object - CSS selectors for data extraction (optional)',
@@ -136,6 +136,15 @@ Response: {
   }
 }
 
+User: "Pobierz dane ze strony https://example.com"
+Response: {
+  "tool": "scrape_website",
+  "reasoning": "User wants to scrape data from a website",
+  "parameters": {
+    "url": "https://example.com"
+  }
+}
+
 User: "What's the weather like?"
 Response: {
   "tool": "conversation",
@@ -143,7 +152,8 @@ Response: {
   "parameters": {}
 }
 
-IMPORTANT: Always respond with valid JSON only, no additional text.`;
+IMPORTANT: Always respond with valid JSON only, no additional text.
+IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS use scrape_website tool, not conversation.`;
   }
 
   /**
@@ -316,13 +326,19 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
       const fileStats = fs.statSync(filepath);
 
       // Save to database (use supabaseAdmin to bypass RLS)
-      await supabaseAdmin.from('pdf_files').insert({
+      const { data, error } = await supabaseAdmin.from('pdf_files').insert({
         user_id: userId,
         title: params.title,
         filename: filename,
         file_path: filepath,
         file_size: fileStats.size,
       });
+
+      if (error) {
+        console.error('❌ Failed to save PDF to database:', error);
+      } else {
+        console.log('✅ PDF saved to database:', data);
+      }
 
       return `✅ PDF generated successfully: ${params.title} (${filename})\n\nTwój raport PDF jest dostępny w zakładce PDF Generator w sekcji Ostatnie PDF.`;
     } catch (error) {
@@ -345,13 +361,24 @@ IMPORTANT: Always respond with valid JSON only, no additional text.`;
         selectors: params.selectors,
       });
 
+      // Generate name from URL
+      const urlObj = new URL(params.url);
+      const scrapeName = `Scrape ${urlObj.hostname} - ${new Date().toLocaleString('pl-PL')}`;
+
       // Save to database (use supabaseAdmin to bypass RLS)
-      await supabaseAdmin.from('scrape_jobs').insert({
+      const { data, error } = await supabaseAdmin.from('scrape_jobs').insert({
         user_id: userId,
+        name: scrapeName,
         url: params.url,
         status: 'completed',
         result_data: result,
       });
+
+      if (error) {
+        console.error('❌ Failed to save scrape job to database:', error);
+      } else {
+        console.log('✅ Scrape job saved to database:', data);
+      }
 
       const resultPreview = JSON.stringify(result, null, 2).substring(0, 500);
       return `✅ Website scraped successfully!\n\nURL: ${params.url}\n\nData preview:\n${resultPreview}${JSON.stringify(result).length > 500 ? '...' : ''}`;

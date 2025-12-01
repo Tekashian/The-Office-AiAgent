@@ -159,10 +159,16 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
   /**
    * Analyze user message and determine action
    */
-  async analyzeIntent(message: string, _userId?: string): Promise<AgentAction> {
+  async analyzeIntent(message: string, userId?: string): Promise<AgentAction> {
     try {
+      // Load user context if available
+      let userContext = '';
+      if (userId) {
+        userContext = await aiService.getUserContext(userId);
+      }
+
       const systemPrompt = this.getSystemPrompt();
-      const fullPrompt = `${systemPrompt}\n\nUser message: "${message}"\n\nYour JSON response:`;
+      const fullPrompt = `${userContext}${systemPrompt}\n\nUser message: "${message}"\n\nYour JSON response:`;
 
       const response = await aiService.chat(fullPrompt, []);
       
@@ -258,6 +264,59 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
 
       console.log('📤 Sending email via Gmail SMTP using IMAP credentials...');
       
+      // Get user profile for email signature and context
+      const { data: profile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('email_signature, full_name, job_title, company')
+        .eq('user_id', userId)
+        .single();
+
+      console.log('👤 User profile loaded:', profile ? 'Yes' : 'No');
+
+      // Generate professional email with AI using user context
+      let emailBody = params.body;
+      let emailSubject = params.subject;
+
+      // If body is simple (no formatting), enhance it with AI
+      if (!params.body.includes('\n\n') && !params.body.includes('Szanowni') && !params.body.includes('Z poważaniem')) {
+        console.log('🤖 Enhancing email with AI for professional format...');
+        
+        try {
+          const enhanced = await aiService.generateEmailTemplate(
+            'professional_notification',
+            `Create a professional formal email with this message: "${params.body}". Subject should be: "${params.subject || 'Ważna informacja'}".`,
+            userId
+          );
+          
+          emailBody = enhanced.body;
+          emailSubject = enhanced.subject || params.subject;
+          
+          console.log('✅ Email enhanced with professional format');
+        } catch (enhanceError) {
+          console.warn('⚠️ Could not enhance email, using original:', enhanceError);
+        }
+      }
+
+      // Add email signature if available and not already present
+      if (profile?.email_signature && !emailBody.includes(profile.email_signature)) {
+        // Replace placeholders in signature
+        let signature = profile.email_signature;
+        signature = signature.replace(/\{\{name\}\}/g, profile.full_name || '');
+        signature = signature.replace(/\{\{position\}\}/g, profile.job_title || '');
+        signature = signature.replace(/\{\{company\}\}/g, profile.company || '');
+        signature = signature.replace(/\{\{sender_name\}\}/g, profile.full_name || '');
+        signature = signature.replace(/\{\{sender_position\}\}/g, profile.job_title || '');
+        signature = signature.replace(/\{\{company_name\}\}/g, profile.company || '');
+        
+        // Add signature if email doesn't already have a closing
+        if (!emailBody.includes('Z poważaniem') && !emailBody.includes('Pozdrawiam')) {
+          emailBody = `${emailBody}\n\n${signature}`;
+        }
+      }
+
+      // Convert \n to proper line breaks for HTML
+      const htmlBody = emailBody.replace(/\n/g, '<br>');
+      
       // Use Gmail SMTP with IMAP credentials
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({
@@ -274,9 +333,9 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
       const info = await transporter.sendMail({
         from: imap.imap_user,
         to: Array.isArray(params.to) ? params.to.join(', ') : params.to,
-        subject: params.subject,
-        text: params.body,
-        html: `<p>${params.body}</p>`,
+        subject: emailSubject,
+        text: emailBody,
+        html: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">${htmlBody}</div>`,
       });
 
       console.log('✅ Email sent successfully:', info.messageId);
@@ -285,8 +344,8 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
       await supabaseAdmin.from('emails_sent').insert({
         user_id: userId,
         recipient: Array.isArray(params.to) ? params.to.join(', ') : params.to,
-        subject: params.subject,
-        body: params.body,
+        subject: emailSubject,
+        body: emailBody,
         status: 'sent',
         message_id: info.messageId,
       });
@@ -509,8 +568,15 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
 
       if (action.tool === 'conversation') {
         console.log('💬 Tool is conversation, using AI chat...');
-        // Just have AI respond naturally
-        return await aiService.chat(message, conversationHistory);
+        // Load user context for natural conversation
+        let userContext = '';
+        if (userId) {
+          userContext = await aiService.getUserContext(userId);
+        }
+        
+        // Just have AI respond naturally with context
+        const contextualMessage = userContext ? `${userContext}\n\n${message}` : message;
+        return await aiService.chat(contextualMessage, conversationHistory);
       }
 
       console.log('🔧 Executing action:', action.tool);
@@ -519,13 +585,18 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
       
       console.log('✅ Action result:', result);
       
-      // Have AI formulate a natural response
-      const naturalResponse = await aiService.chat(
-        `I just executed this action: ${action.tool} with these parameters: ${JSON.stringify(action.parameters)}. The result was: ${result}. 
+      // Load user context for natural response
+      let userContext = '';
+      if (userId) {
+        userContext = await aiService.getUserContext(userId);
+      }
+      
+      // Have AI formulate a natural response with user context
+      const contextualPrompt = `${userContext}I just executed this action: ${action.tool} with these parameters: ${JSON.stringify(action.parameters)}. The result was: ${result}. 
         
-        Please formulate a brief, natural response to tell the user what happened. Keep it concise and friendly.`,
-        []
-      );
+        Please formulate a brief, natural response to tell the user what happened. Keep it concise and friendly.`;
+      
+      const naturalResponse = await aiService.chat(contextualPrompt, []);
 
       return naturalResponse || result;
     } catch (error) {

@@ -120,7 +120,9 @@ export class AIService {
         ],
         generationConfig: {
           temperature: request.temperature || 0.7,
-          maxOutputTokens: request.maxTokens || 1000,
+          maxOutputTokens: request.maxTokens || 2000,
+          topP: 0.95,
+          topK: 40,
         },
       };
 
@@ -247,27 +249,27 @@ export class AIService {
         userContext = await this.getUserContext(userId);
       }
 
-      const prompt = `${userContext}Generate a SHORT professional email template for the category: "${category}".
-${additionalContext ? `Additional context: ${additionalContext}` : ''}
+      const prompt = `${userContext}Create a professional Polish business email.
+${additionalContext ? `Message: ${additionalContext}` : ''}
 
-Requirements:
-- Create a subject line in Polish that fits the category
-- Create a SHORT professional email body in Polish (max 3-4 sentences)
-- Use placeholders like {{name}}, {{company}}, {{date}} where appropriate
-- Keep it VERY concise and professional
-${userContext ? '- Use the USER CONTEXT above to personalize the tone and style' : ''}
+Format:
+Szanowni Państwo,
 
-Return ONLY a JSON object with this EXACT structure (NO markdown, NO code blocks, NO extra text):
-{
-  "subject": "krótki temat",
-  "body": "Krótka treść emaila.\\n\\nPozdrowienia"
-}
+[Main content - 2-3 sentences max]
 
-CRITICAL: Response must be VALID JSON ONLY. Keep body SHORT (max 150 words).`;
+Z poważaniem,
+{{sender_name}}
+{{sender_position}}
+{{company_name}}
+
+Return ONLY valid JSON:
+{"subject": "short subject", "body": "Szanowni Państwo,\\n\\n[content]\\n\\nZ poważaniem,\\n{{sender_name}}\\n{{sender_position}}\\n{{company_name}}"}
+
+Rules: Polish language, formal tone, use \\n\\n between paragraphs, \\n in signature, max 150 words.`;
 
       const response = await this.sendRequest({
         prompt,
-        temperature: 0.5,
+        temperature: 0.3,
         maxTokens: 800
       });
 

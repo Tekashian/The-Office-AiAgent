@@ -29,6 +29,14 @@ export default function AgentPage() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showExamples, setShowExamples] = useState(true);
+
+  const examplePrompts = [
+    "Wygeneruj raport sprzedażowy za ostatni miesiąc",
+    "Pobierz dane ze strony https://example.com",
+    "Wyślij email do klienta z podsumowaniem",
+    "Utwórz zadanie cykliczne co poniedziałek o 9:00",
+  ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -58,6 +66,9 @@ export default function AgentPage() {
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
+
+    // Hide examples after first message
+    setShowExamples(false);
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -129,12 +140,13 @@ export default function AgentPage() {
           <div
             className="flex-1 space-y-4 p-6 overflow-y-auto custom-scrollbar"
           >
-            {messages.map((message) => (
+            {messages.map((message, index) => (
               <div
                 key={message.id}
                 className={`flex ${
                   message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                } animate-in fade-in slide-in-from-bottom-4 duration-500`}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div
                   className={`flex max-w-[80%] gap-3 ${
@@ -142,10 +154,10 @@ export default function AgentPage() {
                   }`}
                 >
                   <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 ${
                       message.role === 'user'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gradient-to-br from-purple-600 to-blue-600 text-white'
+                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/50'
+                        : 'bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-600/50 animate-pulse-slow'
                     }`}
                   >
                     {message.role === 'user' ? (
@@ -155,10 +167,10 @@ export default function AgentPage() {
                     )}
                   </div>
                   <div
-                    className={`rounded-2xl px-4 py-3 ${
+                    className={`rounded-2xl px-4 py-3 transition-all hover:scale-[1.02] ${
                       message.role === 'user'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100'
+                        ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
+                        : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900 dark:from-gray-800 dark:to-gray-900 dark:text-gray-100 shadow-lg'
                     }`}
                   >
                     <p className="whitespace-pre-wrap text-sm">{message.content}</p>
@@ -178,17 +190,46 @@ export default function AgentPage() {
                 </div>
               </div>
             ))}
+
+            {/* Example Prompts */}
+            {showExamples && messages.length === 1 && (
+              <div className="mt-8 space-y-3">
+                <p className="text-center text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Przykładowe polecenia:
+                </p>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {examplePrompts.map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setInput(prompt);
+                        setShowExamples(false);
+                      }}
+                      className="group rounded-lg border border-gray-200 bg-white p-3 text-left text-sm transition-all hover:border-primary-500 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 dark:hover:border-primary-400"
+                    >
+                      <div className="flex items-start gap-2">
+                        <Sparkles className="mt-0.5 h-4 w-4 text-primary-600 dark:text-primary-400" />
+                        <span className="text-gray-700 group-hover:text-primary-600 dark:text-gray-300 dark:group-hover:text-primary-400">
+                          {prompt}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {isLoading && (
-              <div className="flex justify-start">
+              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex max-w-[80%] gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-blue-600 text-white">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-600/50">
                     <Loader2 className="h-5 w-5 animate-spin" />
                   </div>
-                  <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-800">
+                  <div className="rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-3 shadow-lg dark:from-gray-800 dark:to-gray-900">
                     <div className="flex gap-1">
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:0.2s]" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:0.4s]" />
+                      <div className="h-2 w-2 animate-bounce rounded-full bg-purple-500" />
+                      <div className="h-2 w-2 animate-bounce rounded-full bg-blue-500 [animation-delay:0.2s]" />
+                      <div className="h-2 w-2 animate-bounce rounded-full bg-indigo-500 [animation-delay:0.4s]" />
                     </div>
                   </div>
                 </div>

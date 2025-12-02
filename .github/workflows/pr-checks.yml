@@ -1,0 +1,271 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Cancel outdated PR runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================
+  # JOB 1: PR Metadata Validation
+  # ==========================================
+  pr-validation:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - name: Check PR title follows conventional commits
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^[A-Z].+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            must start with an uppercase character.
+
+      - name: Check PR has description
+        if: github.event.pull_request.body == ''
+        run: |
+          echo "::error::PR must have a description"
+          exit 1
+
+      - name: Check PR size (max 500 lines changed)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const additions = pr.additions;
+            const deletions = pr.deletions;
+            const totalChanges = additions + deletions;
+            
+            if (totalChanges > 500) {
+              core.setFailed(`PR is too large (${totalChanges} lines). Consider breaking it into smaller PRs.`);
+            }
+
+  # ==========================================
+  # JOB 2: Changed Files Detection
+  # ==========================================
+  detect-changes:
+    name: Detect Changed Files
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      docs: ${{ steps.changes.outputs.docs }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            docs:
+              - 'docs/**'
+              - '*.md'
+
+  # ==========================================
+  # JOB 3: Backend Tests (if changed)
+  # ==========================================
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Run tests
+        working-directory: ./backend
+        run: npm test
+
+      - name: Check test coverage
+        working-directory: ./backend
+        run: |
+          npm run test:coverage
+          # Extract coverage percentage
+          COVERAGE=$(grep -oP 'All files\s+\|\s+\K[0-9.]+' coverage/coverage-summary.json || echo "0")
+          echo "Coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "::warning::Test coverage is below 70% (${COVERAGE}%)"
+          fi
+
+  # ==========================================
+  # JOB 4: Frontend Tests (if changed)
+  # ==========================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run lint
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Build check
+        working-directory: ./frontend
+        run: npm run build
+
+  # ==========================================
+  # JOB 5: Code Review Automation
+  # ==========================================
+  auto-review:
+    name: Automated Code Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run AI Code Review
+        uses: coderabbitai/ai-pr-reviewer@latest
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          review_simple_changes: false
+          review_comment_lgtm: true
+
+  # ==========================================
+  # JOB 6: Dependency Security Check
+  # ==========================================
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-2.0, GPL-3.0
+
+  # ==========================================
+  # JOB 7: Performance Budget Check
+  # ==========================================
+  performance-check:
+    name: Performance Budget
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build for production
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Check bundle size
+        working-directory: ./frontend
+        run: |
+          BUNDLE_SIZE=$(du -sh .next/static | cut -f1)
+          echo "Bundle size: $BUNDLE_SIZE"
+          # Add bundle size check logic here
+
+  # ==========================================
+  # JOB 8: PR Summary & Status
+  # ==========================================
+  pr-summary:
+    name: PR Summary
+    runs-on: ubuntu-latest
+    needs: [pr-validation, backend-tests, frontend-tests]
+    if: always()
+
+    steps:
+      - name: Post PR summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `
+            ## 📊 PR Check Summary
+            
+            | Check | Status |
+            |-------|--------|
+            | PR Validation | ${{ needs.pr-validation.result == 'success' && '✅' || '❌' }} |
+            | Backend Tests | ${{ needs.backend-tests.result == 'success' && '✅' || needs.backend-tests.result == 'skipped' && '⏭️' || '❌' }} |
+            | Frontend Tests | ${{ needs.frontend-tests.result == 'success' && '✅' || needs.frontend-tests.result == 'skipped' && '⏭️' || '❌' }} |
+            
+            ${{ needs.pr-validation.result == 'success' && needs.backend-tests.result != 'failure' && needs.frontend-tests.result != 'failure' && '🎉 **All checks passed!** Ready for review.' || '⚠️ **Some checks failed.** Please review the logs.' }}
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });

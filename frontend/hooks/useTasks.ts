@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getAccessToken } from '@/lib/auth';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 export interface CronJob {
   id: string;
   name: string;
@@ -49,7 +51,7 @@ export function useTasks() {
       }
 
       console.log('🔄 Fetching cron jobs...');
-      const response = await fetch('http://localhost:3001/api/cron/jobs', {
+      const response = await fetch(`${API_URL}/api/cron/jobs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -83,7 +85,7 @@ export function useTasks() {
   }): Promise<boolean> => {
     try {
       const token = await getAccessToken();
-      const response = await fetch('http://localhost:3001/api/cron/create', {
+      const response = await fetch(`${API_URL}/api/cron/create`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -116,7 +118,7 @@ export function useTasks() {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `http://localhost:3001/api/cron/jobs/${jobId}`,
+        `${API_URL}/api/cron/jobs/${jobId}`,
         {
           method: 'PUT',
           headers: {
@@ -142,7 +144,7 @@ export function useTasks() {
     try {
       const token = await getAccessToken();
       const response = await fetch(
-        `http://localhost:3001/api/cron/jobs/${jobId}`,
+        `${API_URL}/api/cron/jobs/${jobId}`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
@@ -166,7 +168,7 @@ export function useTasks() {
       const action = job.enabled ? 'stop' : 'start';
 
       const response = await fetch(
-        `http://localhost:3001/api/cron/jobs/${job.id}/${action}`,
+        `${API_URL}/api/cron/jobs/${job.id}/${action}`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -210,7 +212,7 @@ PDF: {"filename": "raport.pdf", "title": "Tytuł Dokumentu", "content": "Treść
 Scraping: {"url": "https://example.com", "selector": ".class", "data_fields": ["field1", "field2"]}
 Custom: {"action": "custom_action", "parameters": {}}`;
 
-      const response = await fetch('http://localhost:3001/api/ai/generate', {
+      const response = await fetch(`${API_URL}/api/ai/generate`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

@@ -3,6 +3,20 @@ title The Office AI Agent - Database Entity Relationship Diagram
 skinparam BackgroundColor FFFFFF
 skinparam shadowing false
 
+note top
+  **Database Architecture:**
+  • PostgreSQL 15 (Supabase)
+  • 15 tables with Row Level Security (RLS)
+  • All user data isolated by user_id
+  • Encrypted sensitive data (IMAP passwords)
+  
+  **Phase 2 Notes:**
+  • No schema changes needed
+  • user_context is a service-layer aggregation (not a table)
+  • BaseService<T> provides generic CRUD for all tables
+  • Logger tracks all database operations
+end note
+
 ' ============ ENTITIES ============
 
 entity "auth.users" as users {

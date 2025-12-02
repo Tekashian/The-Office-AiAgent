@@ -70,9 +70,15 @@ package "FRONTEND_ICON Frontend (Next.js 15)" #E3F2FD {
 ' Backend Layer
 package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
     component "🚦 Express Server" as ExpressServer #FFE082
-    component "🛡️ Auth Middleware" as AuthMiddleware #FFD54F
-    component "📤 Upload Middleware" as UploadMiddleware #FFD54F
-    component "❗ Error Handler" as ErrorHandler #FFD54F
+    
+    package "Middleware Layer" #FFFDE7 {
+        component "🛡️ Auth Middleware" as AuthMiddleware #FFD54F
+        component "📤 Upload Middleware" as UploadMiddleware #FFD54F
+        component "❗ Error Handler" as ErrorHandler #FFD54F
+        component "🔍 Request Logger" as RequestLogger #FFD54F
+        component "⏱️ Rate Limiter" as RateLimiter #FFD54F
+        component "✅ Validation" as ValidationMiddleware #FFD54F
+    }
     
     package "API Routes" #FFFDE7 {
         component "🤖 Agent Routes" as AgentRoutes #FFF9C4
@@ -90,7 +96,14 @@ package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
         component "🔍 Search Routes" as SearchRoutes #FFF9C4
     }
     
+    package "Controllers Layer" #E1BEE7 {
+        component "🎮 Base Controller" as BaseController #CE93D8
+        component "🤖 Agent Controller" as AgentController #CE93D8
+        component "📊 Dashboard Controller" as DashboardController #CE93D8
+    }
+    
     package "Services Layer" #E8F5E9 {
+        component "🎯 Base Service" as BaseService #81C784
         component "🤖 Agent Orchestrator" as AgentOrchestrator #A5D6A7
         component "🧠 AI Service" as AIService #A5D6A7
         component "📧 Email Service" as EmailService #A5D6A7
@@ -98,19 +111,29 @@ package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
         component "📄 PDF Service" as PDFService #A5D6A7
         component "🔎 Scraper Service" as ScraperService #A5D6A7
         component "⏰ Cron Service" as CronService #A5D6A7
+        component "👤 User Context Service" as UserContextService #A5D6A7
     }
     
-    note right of AgentOrchestrator : Interprets user intent\nand executes tools\nOrchestrates Cron tasks
-    note right of AIService : Gemini API integration\nUser context management
+    note right of AgentOrchestrator : Interprets user intent\nExecutes tools\nOrchestrates Cron tasks\nLanguage detection
+    note right of AIService : Gemini API integration\nUser context management\nLanguage-aware responses
     note right of InboxService : IMAP inbox scanning\nAI email analysis\nDraft generation
     note right of ScraperService : Web scraping\nAI-powered extraction
     note right of CronService : Node-cron wrapper\nTriggers AgentOrchestrator
+    note right of UserContextService : User profile formatting\nAI context generation\nExtends BaseService
     
     package "Utilities" #F3E5F5 {
         component "🔐 Encryption Utils" as Encryption #CE93D8
         component "📁 Init Directories" as InitDirs #CE93D8
         component "🧪 Validate Env" as ValidateEnv #CE93D8
         component "💾 File Storage" as FileStorage #CE93D8
+        component "📋 Logger Service" as Logger #CE93D8
+        component "🚀 Cache Service" as Cache #CE93D8
+        component "❌ Custom Errors" as ErrorClasses #CE93D8
+        component "⚡ Performance Utils" as Performance #CE93D8
+    }
+    
+    package "Configuration" #B2DFDB {
+        component "⚙️ Centralized Config" as Config #80CBC4
     }
     
     component "🗄️ Supabase Admin Client" as SupabaseBackend #B0BEC5
@@ -167,8 +190,10 @@ UIComponents -[#43A047]-> SupabaseFrontend : Direct DB
 Pages -[#1976D2]-> AuthFrontend : Auth
 NotifProvider -[#43A047]-> SupabaseFrontend : Subscribe
 
-' Backend Flow
-ExpressServer -[#FBC02D,bold]-> AuthMiddleware : Auth
+' Backend Flow (Middleware Chain)
+ExpressServer -[#FBC02D,bold]-> RequestLogger : Log
+RequestLogger -[#FBC02D]-> RateLimiter : Limit
+RateLimiter -[#FBC02D]-> AuthMiddleware : Auth
 AuthMiddleware -[#FBC02D]-> AgentRoutes
 AuthMiddleware -[#FBC02D]-> AIRoutes
 AuthMiddleware -[#FBC02D]-> EmailRoutes
@@ -184,8 +209,16 @@ AuthMiddleware -[#FBC02D]-> UserContextRoutes
 AuthMiddleware -[#FBC02D]-> NotificationRoutes
 AuthMiddleware -[#FBC02D]-> SearchRoutes
 
-' Routes to Services (grupowanie)
-AgentRoutes -[#388E3C,bold]-> AgentOrchestrator : Process
+' Routes to Controllers
+AgentRoutes -[#8E24AA,bold]-> AgentController : Delegate
+DashboardRoutes -[#8E24AA,bold]-> DashboardController : Delegate
+
+' Controllers to Services
+AgentController -[#388E3C,bold]-> AgentOrchestrator : Process
+DashboardController -[#388E3C]-> Cache : Check
+DashboardController -[#388E3C]-> SupabaseBackend : Query
+
+' Routes to Services (direct - legacy routes)
 AIRoutes -[#388E3C]-> AIService : AI
 EmailRoutes -[#388E3C]-> EmailService : Email
 EmailConfigRoutes -[#388E3C]-> SupabaseBackend : Config
@@ -207,7 +240,8 @@ CronService -[#8E24AA,dashed,bold]-> AgentOrchestrator : Trigger⏰\n(async)
 
 ' Services to External & Database
 AIService -[#FF9800,bold]-> GeminiAPI : API
-AIService -[#00838F]-> SupabaseBackend : Context
+AIService -[#00838F]-> UserContextService : Context
+UserContextService -[#00838F]-> SupabaseBackend : Profile
 EmailService -[#FF9800]-> Gmail : SMTP
 InboxService -[#FF9800,dashed]-> Gmail : IMAP (async)
 InboxService -[#00838F]-> AIService : Analyze
@@ -221,6 +255,16 @@ InboxService -[#00838F]-> SupabaseBackend
 PDFService -[#00838F]-> SupabaseBackend
 ScraperService -[#00838F]-> SupabaseBackend
 CronService -[#00838F]-> SupabaseBackend
+
+' Services use utilities
+AgentOrchestrator -[#CE93D8]-> Logger : Log
+AIService -[#CE93D8]-> Logger : Log
+AIService -[#CE93D8]-> Config : Settings
+EmailService -[#CE93D8]-> Logger : Log
+InboxService -[#CE93D8]-> Logger : Log
+UserContextService -[#CE93D8]-> Logger : Log
+DashboardController -[#CE93D8]-> Cache : Cache
+BaseController -[#CE93D8]-> ErrorClasses : Errors
 
 ' Database Layer
 SupabaseBackend -[#0288D1,bold]-> profiles_tbl
@@ -256,29 +300,40 @@ legend right
     | 🗄️ | Database (Supabase/PostgreSQL) |
     | ☁️ | External Service (AI, Gmail, Web) |
     | 🪝 | Custom React Hooks (Business Logic) |
+    | 🎮 | Controllers (Request handling layer) |
+    | 🎯 | Base Classes (Inheritance hierarchy) |
     | Package | Logical grouping |
     | --> | Dependency/Call direction |
     | <color:#1976D2><b>niebieska gruba</b></color> | Frontend → Backend/API komunikacja |
     | <color:#43A047>zielona</color> | Frontend → Supabase (bezpośredni dostęp) |
-    | <color:#FBC02D><b>żółta gruba</b></color> | Backend: autoryzacja i routing |
-    | <color:#388E3C><b>ciemnozielona gruba</b></color> | API Routes → Services (główne akcje) |
-    | <color:#8E24AA><b>fioletowa gruba</b></color> | Orkiestracja przez Agent Orchestrator |
+    | <color:#FBC02D><b>żółta gruba</b></color> | Backend: middleware chain (logging, auth, rate limiting) |
+    | <color:#8E24AA><b>fioletowa gruba</b></color> | Routes → Controllers (new architecture) |
+    | <color:#388E3C><b>ciemnozielona gruba</b></color> | Controllers/Routes → Services (business logic) |
     | <color:#FF9800><b>pomarańczowa gruba</b></color> | Połączenia z zewnętrznymi systemami |
     | <color:#00838F><b>turkusowa gruba</b></color> | Połączenia z bazą danych |
     | <color:#0288D1><b>niebieska jasna</b></color> | Backend → tabele bazy danych |
-    | <color:#CE93D8>fioletowa jasna</color> | Połączenia z narzędziami pomocniczymi |
+    | <color:#CE93D8>fioletowa jasna</color> | Services → Utilities (logger, cache, config) |
     | <color:#D32F2F><b>czerwona gruba</b></color> | Obsługa błędów |
     | ---> (dashed) | Asynchroniczne operacje (queue-based/long-running) |
   
     **Key Features:**
-    • AI-powered office automation
+    • AI-powered office automation with language detection
     • Dual email system (IMAP receiving + SMTP sending)
     • PDF generation with templates + file storage
     • Web scraping with AI extraction (async)
     • Scheduled tasks via Agent Orchestrator
     • Real-time notifications with Supabase
     • Multi-user support with RLS
-    • **Senior-level Frontend: Custom Hooks + Component Composition**
+    • **Senior-level Architecture:**
+      - Controller layer for request handling
+      - BaseController/BaseService patterns
+      - Structured logging with Logger service
+      - In-memory caching with Cache service
+      - Request tracing with correlation IDs
+      - Rate limiting (global + per-route)
+      - Centralized configuration management
+      - Custom error hierarchy
+      - Performance monitoring
 endlegend
 
 @enduml

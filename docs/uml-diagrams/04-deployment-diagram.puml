@@ -52,24 +52,46 @@ node "Backend Server (VPS / Cloud VM)" <<execution environment>> {
         }
         
         package "Application Core" {
+            component "Controllers Layer" as Controllers {
+                component "Base Controller"
+                component "Agent Controller"
+                component "Dashboard Controller"
+            }
+            
             component "API Routes Layer" as Routes
+            
             component "Services Layer" as Services {
+                component "Base Service (Generic CRUD)"
                 component "Agent Orchestrator"
                 component "AI Service"
+                component "User Context Service"
                 component "Email Service"
                 component "Email Inbox Service"
                 component "PDF Service"
                 component "Scraper Service"
                 component "Cron Service"
             }
+            
             component "Middleware Layer" as Middleware {
+                component "Request Logger"
+                component "Rate Limiter"
                 component "Auth Middleware"
+                component "Validation"
                 component "Error Handler"
                 component "CORS Handler"
             }
+            
             component "Utilities" as Utils {
+                component "Logger (Singleton)"
+                component "Cache (LRU + TTL)"
+                component "Performance Monitor"
+                component "Error Classes"
                 component "Encryption/Decryption"
                 component "Environment Validation"
+            }
+            
+            component "Configuration" as Config {
+                component "Centralized Config (Singleton)"
             }
         }
         
@@ -90,6 +112,17 @@ node "Backend Server (VPS / Cloud VM)" <<execution environment>> {
         • Cheerio (Web Scraping)
         • Axios (HTTP Client)
         • node-cron (Task Scheduling)
+        
+        **Phase 2 Optimizations:**
+        • Controllers Layer - Request handling
+        • BaseService<T> - Generic CRUD
+        • Logger Singleton - Structured logging
+        • Cache (LRU) - In-memory caching
+        • Rate Limiter - Request throttling
+        • Config Singleton - Centralized configuration
+        • Performance Monitor - Metrics tracking
+        • Request Logger - Correlation IDs
+        • Error Hierarchy - Custom error classes
     end note
 }
 

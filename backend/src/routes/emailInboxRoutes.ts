@@ -3,6 +3,7 @@ import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { encrypt } from '../utils/encryption';
 import emailInboxService from '../services/emailInboxService';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -152,7 +153,7 @@ router.get('/emails', authenticateUser, async (req: AuthenticatedRequest, res: R
 router.get('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    console.log('📧 Fetching email:', id, 'for user:', req.userId);
+    logger.debug('Fetching email', { emailId: id, userId: req.userId });
 
     const { data: email, error } = await supabaseAdmin
       .from('emails_inbox')
@@ -162,12 +163,12 @@ router.get('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, re
       .single();
 
     if (error || !email) {
-      console.error('❌ Email not found:', error);
+      logger.warn('Email not found', { emailId: id, userId: req.userId, error });
       res.status(404).json({ error: 'Email not found' });
       return;
     }
 
-    console.log('✅ Email found:', email.subject);
+    logger.debug('Email found', { emailId: id, subject: email.subject, userId: req.userId });
 
     // Get AI draft if exists - use maybeSingle() instead of single()
     const { data: drafts, error: draftError } = await supabaseAdmin
@@ -179,20 +180,20 @@ router.get('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, re
       .limit(1);
 
     if (draftError) {
-      console.error('⚠️ Draft fetch error:', draftError);
+      logger.warn('Draft fetch error', { emailId: id, error: draftError, userId: req.userId });
     }
 
     const draft = drafts && drafts.length > 0 ? drafts[0] : null;
     
     if (draft) {
-      console.log('📝 Draft found for email:', email.subject);
+      logger.debug('Draft found for email', { emailId: id, draftId: draft.id, userId: req.userId });
     } else {
-      console.log('ℹ️ No draft found for email:', email.subject);
+      logger.debug('No draft found for email', { emailId: id, userId: req.userId });
     }
 
     res.json({ email, draft });
   } catch (error) {
-    console.error('❌ Get email error:', error);
+    logger.error('Get email error', { error, emailId: req.params.id, userId: req.userId });
     res.status(500).json({ error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
@@ -211,6 +212,8 @@ router.patch('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, 
     if (typeof is_starred === 'boolean') updates.is_starred = is_starred;
     if (typeof is_archived === 'boolean') updates.is_archived = is_archived;
 
+    logger.debug('Updating email', { emailId: id, updates, userId: req.userId });
+
     const { data, error } = await supabaseAdmin
       .from('emails_inbox')
       .update(updates)
@@ -220,13 +223,15 @@ router.patch('/emails/:id', authenticateUser, async (req: AuthenticatedRequest, 
       .single();
 
     if (error) {
+      logger.error('Email update failed', { emailId: id, error, userId: req.userId });
       res.status(500).json({ error: 'Update failed', details: error.message });
       return;
     }
 
+    logger.info('Email updated successfully', { emailId: id, updates, userId: req.userId });
     res.json({ success: true, email: data });
   } catch (error) {
-    console.error('Update email error:', error);
+    logger.error('Update email error', { error, emailId: req.params.id, userId: req.userId });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -384,33 +389,49 @@ router.post('/drafts/:id/send', authenticateUser, async (req: AuthenticatedReque
  */
 router.get('/stats', authenticateUser, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    logger.debug('Fetching email inbox stats', { userId: req.userId });
+    
     const [unreadResult, urgentResult, draftsResult] = await Promise.all([
-      supabase
+      supabaseAdmin
         .from('emails_inbox')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', req.userId)
         .eq('is_read', false),
       
-      supabase
+      supabaseAdmin
         .from('emails_inbox')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', req.userId)
         .eq('ai_priority', 'urgent'),
       
-      supabase
+      supabaseAdmin
         .from('ai_email_drafts')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', req.userId)
         .eq('status', 'pending'),
     ]);
 
-    res.json({
+    // Check for errors in any query
+    if (unreadResult.error) {
+      logger.error('Failed to count unread emails', { error: unreadResult.error, userId: req.userId });
+    }
+    if (urgentResult.error) {
+      logger.error('Failed to count urgent emails', { error: urgentResult.error, userId: req.userId });
+    }
+    if (draftsResult.error) {
+      logger.error('Failed to count pending drafts', { error: draftsResult.error, userId: req.userId });
+    }
+
+    const stats = {
       unread: unreadResult.count || 0,
       urgent: urgentResult.count || 0,
       pending_drafts: draftsResult.count || 0,
-    });
+    };
+
+    logger.info('Email inbox stats retrieved', { userId: req.userId, stats });
+    res.json(stats);
   } catch (error) {
-    console.error('Get stats error:', error);
+    logger.error('Get stats error', { error, userId: req.userId });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

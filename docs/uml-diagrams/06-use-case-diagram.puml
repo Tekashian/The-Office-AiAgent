@@ -98,6 +98,18 @@ rectangle "The Office AI Agent System" {
         usecase "View Notifications" as UC_Notifications
         usecase "Search All Data" as UC_GlobalSearch
     }
+    
+    ' ============ PHASE 2 FEATURES ============
+    
+    package "Phase 2 Optimizations" #LightCyan {
+        usecase "Language-Aware\nResponses" as UC_Language
+        usecase "Cached Dashboard\nStatistics" as UC_Cache
+        usecase "Rate Limited\nAPI Access" as UC_RateLimit
+        usecase "Request Tracing\nwith Correlation IDs" as UC_Tracing
+        usecase "Performance\nMonitoring" as UC_Performance
+        usecase "Structured\nLogging" as UC_Logging
+        usecase "Auto-Schedule\nCron Jobs" as UC_AutoSchedule
+    }
 }
 
 ' ============ USER RELATIONSHIPS ============
@@ -148,6 +160,15 @@ User --> UC_Dashboard
 User --> UC_Stats
 User --> UC_Notifications
 User --> UC_GlobalSearch
+
+User --> UC_Language
+User --> UC_Cache
+User --> UC_Performance
+
+Admin --> UC_RateLimit
+Admin --> UC_Tracing
+Admin --> UC_Logging
+Admin --> UC_AutoSchedule
 
 ' ============ SYSTEM SCHEDULER RELATIONSHIPS ============
 
@@ -246,6 +267,18 @@ note top of "Task Automation (Cron Jobs)"
     • Custom cron expressions
     • Multiple task types
     • Reliable execution
+    • Auto-default: 0 9 * * * (daily at 9am)
+end note
+
+note top of "Phase 2 Optimizations"
+    **Performance & Quality:**
+    • Language Detection - Polish/English automatic
+    • Cache - LRU with TTL for dashboard stats
+    • Rate Limiting - Global + per-route throttling
+    • Correlation IDs - Distributed request tracing
+    • Performance Metrics - Response time tracking
+    • Structured Logging - All operations logged
+    • Default Schedules - No frequency input needed
 end note
 
 note bottom of Scheduler

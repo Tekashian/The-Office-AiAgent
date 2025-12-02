@@ -1,7 +1,19 @@
 @startuml Office-AI-Agent-Sequence-Diagrams
-title The Office AI Agent - Sequence Diagrams
+title The Office AI Agent - Sequence Diagrams (Updated with Phase 2 Optimizations)
 skinparam BackgroundColor FFFFFF
 skinparam shadowing false
+
+note top
+  **Phase 2 Enhancements Shown:**
+  • Request Logger - Correlation ID generation and request/response logging
+  • Rate Limiter - Rate limiting checks before processing
+  • Logger - Structured logging throughout all services
+  • Language Detection - Automatic Polish/English detection in AgentOrchestrator
+  • User Context Service - AI context aggregation (emails, tasks, notifications)
+  • Cache - Dashboard stats caching with TTL
+  • Error Handling - Custom error classes with proper status codes
+  • Performance Monitoring - Request duration tracking
+end note
 
 ' ============================================
 ' SCENARIO 1: AI Agent Chat with Tool Execution
@@ -30,8 +42,23 @@ activate API
 API -> Backend: HTTP Request + JWT Token
 activate Backend
 
+Backend -> "Request\nLogger" as ReqLogger: Generate correlation ID\nLog request
+activate ReqLogger
+note right: Correlation ID:\n"req-12345-abcd"
+ReqLogger --> Backend: Continue
+deactivate ReqLogger
+
+Backend -> "Rate\nLimiter" as RateLimit: Check rate limit
+activate RateLimit
+RateLimit --> Backend: Allowed
+deactivate RateLimit
+
 Backend -> Auth: Verify JWT Token
 activate Auth
+Auth -> "Logger" as Logger: Log auth attempt
+activate Logger
+Logger --> Auth: Logged
+deactivate Logger
 Auth --> Backend: userId extracted
 deactivate Auth
 
@@ -41,11 +68,28 @@ activate AgentRoutes
 AgentRoutes -> Orchestrator: processMessage(message, userId, history)
 activate Orchestrator
 
-Orchestrator -> AIService: analyzeIntent(message)
-activate AIService
-note right: AI analyzes:\n"User wants to send email"
+Orchestrator -> Logger: Log: Processing message\n{userId, messageLength}
+activate Logger
+Logger --> Orchestrator: Logged
+deactivate Logger
 
-AIService -> AIService: Build system prompt\nwith available tools
+Orchestrator -> Orchestrator: detectLanguage(message)
+note right: Detect Polish/English:\nPolish patterns: ą,ć,ę,ł,ń,ó,ś,ź,ż\nKeywords: jest, czy, się
+
+Orchestrator -> AIService: analyzeIntent(message, userLanguage)
+activate AIService
+note right: AI analyzes:\n"User wants to send email"\nLanguage: Polish/English
+
+AIService -> "User Context\nService" as UserContext: formatUserContext(userId)
+activate UserContext
+UserContext -> DB: Get recent emails, tasks, notifications
+activate DB
+DB --> UserContext: User context data
+deactivate DB
+UserContext --> AIService: Formatted context string
+deactivate UserContext
+
+AIService -> AIService: Build system prompt\nwith language instruction\nand user context
 AIService -> AIService: Call Gemini API
 AIService --> Orchestrator: AgentAction:\n{tool: "send_email",\nparameters: {to, subject, body}}
 deactivate AIService
@@ -63,10 +107,20 @@ note right: Using encryption utils
 Orchestrator -> EmailService: sendEmail(config)
 activate EmailService
 
+EmailService -> Logger: Log: Sending email\n{to, subject}
+activate Logger
+Logger --> EmailService: Logged
+deactivate Logger
+
 EmailService -> Gmail: SMTP Send
 activate Gmail
 Gmail --> EmailService: Message sent (messageId)
 deactivate Gmail
+
+EmailService -> Logger: Log: Email sent successfully\n{messageId}
+activate Logger
+Logger --> EmailService: Logged
+deactivate Logger
 
 EmailService --> Orchestrator: Success
 deactivate EmailService
@@ -76,10 +130,15 @@ activate DB
 DB --> Orchestrator: Saved
 deactivate DB
 
-Orchestrator -> AIService: Format natural response
+Orchestrator -> AIService: Format natural response\n(in detected language)
 activate AIService
-AIService --> Orchestrator: "✅ Email sent successfully\nto john@example.com!"
+AIService --> Orchestrator: "✅ Email sent successfully\nto john@example.com!"\n(Polish or English)
 deactivate AIService
+
+Orchestrator -> Logger: Log: Task completed\n{success, duration}
+activate Logger
+Logger --> Orchestrator: Logged
+deactivate Logger
 
 Orchestrator --> AgentRoutes: Response message
 deactivate Orchestrator
@@ -430,10 +489,21 @@ legend right
   
   **Key Patterns:**
   • RESTful API architecture
-  • JWT authentication
-  • AI-powered automation
+  • JWT authentication with middleware chain
+  • AI-powered automation with language detection
   • Asynchronous processing
   • Database persistence
+  
+  **Phase 2 Optimizations:**
+  • Request Logger - Correlation IDs for distributed tracing
+  • Rate Limiter - Global + per-route rate limiting
+  • Structured Logging - All services log with Logger singleton
+  • Language Detection - Automatic Polish/English detection
+  • User Context - AI receives aggregated user context
+  • Cache - Dashboard stats cached with TTL
+  • Error Handling - Custom error hierarchy
+  • Performance Tracking - Request duration measurement
+  • Default Schedules - Auto-fill cron schedules (0 9 * * *)
 endlegend
 
 @enduml

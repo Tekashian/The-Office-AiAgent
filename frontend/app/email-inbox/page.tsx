@@ -147,6 +147,12 @@ export default function EmailInboxPage() {
     if (!email.is_read) {
       await apiClient.patch(`/api/email-inbox/emails/${email.id}`, { is_read: true });
       setEmails(emails.map(e => e.id === email.id ? { ...e, is_read: true } : e));
+      
+      // Refresh stats after marking as read
+      setStats(prev => ({
+        ...prev,
+        unread: Math.max(0, prev.unread - 1)
+      }));
     }
 
     // Load draft if exists
@@ -191,6 +197,13 @@ export default function EmailInboxPage() {
       await apiClient.post(`/api/email-inbox/drafts/${selectedDraft.id}/send`);
       showToast('Email sent successfully!', 'success');
       setSelectedDraft({ ...selectedDraft, status: 'sent' });
+      
+      // Refresh stats - decrement pending drafts
+      setStats(prev => ({
+        ...prev,
+        pending_drafts: Math.max(0, prev.pending_drafts - 1)
+      }));
+      
       await loadData();
     } catch (error: any) {
       showToast(error.response?.data?.error || 'Send failed', 'error');
@@ -203,6 +216,13 @@ export default function EmailInboxPage() {
     try {
       await apiClient.patch(`/api/email-inbox/drafts/${selectedDraft.id}`, { status: 'rejected' });
       setSelectedDraft({ ...selectedDraft, status: 'rejected' });
+      
+      // Refresh stats - decrement pending drafts
+      setStats(prev => ({
+        ...prev,
+        pending_drafts: Math.max(0, prev.pending_drafts - 1)
+      }));
+      
       showToast('Draft rejected', 'info');
       await loadData();
     } catch (error) {
@@ -219,6 +239,13 @@ export default function EmailInboxPage() {
       setSelectedDraft(response.data.draft);
       setEditedBody(response.data.draft.body);
       setEditingDraft(true); // Włącz tryb edycji od razu
+      
+      // Refresh stats - increment pending drafts
+      setStats(prev => ({
+        ...prev,
+        pending_drafts: prev.pending_drafts + 1
+      }));
+      
       showToast('AI draft generated successfully! You can now edit it.', 'success');
     } catch (error: any) {
       showToast(error.response?.data?.error || 'Failed to generate draft', 'error');

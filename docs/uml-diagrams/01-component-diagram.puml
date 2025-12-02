@@ -43,7 +43,7 @@ package "☁️ EXTERNAL APIs" as External LIGHTORANGE {
   Gmail -[hidden]right-> Web
 }
 
-package "🎨 FRONTEND\n(Next.js 14 + React + TypeScript)" as Frontend LIGHTBLUE {
+package "🎨 FRONTEND\n(Next.js 16 + React 19 + TypeScript)" as Frontend LIGHTBLUE {
   
   package "📱 Pages (12)" {
     component "📊 Dashboard" as PageDash
@@ -111,7 +111,7 @@ package "🎨 FRONTEND\n(Next.js 14 + React + TypeScript)" as Frontend LIGHTBLUE
   end note
 }
 
-package "🎯 BACKEND\n(Express + Node.js + TypeScript)" as Backend LIGHTPURPLE {
+package "🎯 BACKEND\n(Express 5 + Node.js + TypeScript)" as Backend LIGHTPURPLE {
   
   package "🛡️ Middleware (9)" {
     component "Helmet" as Helmet
@@ -316,20 +316,22 @@ database "🗄️ DATABASE\n(PostgreSQL 15 + Supabase)" as DB {
   }
   
   package "📧 Email" {
-    component "[imap_configs]" as IMAPTbl
-    component "[smtp_configs]" as SMTPTbl
+    component "[user_email_configs]\n(IMAP + SMTP)" as EmailConfigsTbl
     component "[emails_inbox]" as InboxTbl
-    component "[email_drafts]" as DraftsTbl
+    component "[ai_email_drafts]" as DraftsTbl
     component "[email_templates]" as TemplatesTbl
-    component "[email_history]" as EmailHistoryTbl
+    component "[emails_sent]" as EmailsSentTbl
+    component "[email_attachments]" as EmailAttachmentsTbl
+    component "[scheduled_emails]" as ScheduledEmailsTbl
     component "[email_scan_logs]" as EmailScanLogsTbl
     
-    IMAPTbl -[hidden]right-> SMTPTbl
-    SMTPTbl -[hidden]right-> InboxTbl
-    InboxTbl -[hidden]down-> DraftsTbl
+    EmailConfigsTbl -[hidden]right-> InboxTbl
+    InboxTbl -[hidden]right-> DraftsTbl
     DraftsTbl -[hidden]right-> TemplatesTbl
-    TemplatesTbl -[hidden]down-> EmailHistoryTbl
-    EmailHistoryTbl -[hidden]right-> EmailScanLogsTbl
+    TemplatesTbl -[hidden]down-> EmailsSentTbl
+    EmailsSentTbl -[hidden]right-> EmailAttachmentsTbl
+    EmailAttachmentsTbl -[hidden]right-> ScheduledEmailsTbl
+    ScheduledEmailsTbl -[hidden]down-> EmailScanLogsTbl
   }
   
   package "📄 PDF" {
@@ -488,10 +490,11 @@ DashCtrl -[#43A047,bold]up-> BaseCtrl : "extends"
 
 ' === BACKEND DATABASE ACCESS ===
 SupabaseBackend -[#43A047,bold]down-> ProfilesTbl
+SupabaseBackend -[#43A047,bold]down-> EmailConfigsTbl
 SupabaseBackend -[#43A047,bold]down-> InboxTbl
 SupabaseBackend -[#43A047,bold]down-> EmailScanLogsTbl
 SupabaseBackend -[#43A047,bold]down-> DraftsTbl
-SupabaseBackend -[#43A047,bold]down-> EmailHistoryTbl
+SupabaseBackend -[#43A047,bold]down-> EmailsSentTbl
 SupabaseBackend -[#43A047,bold]down-> PDFTbl
 SupabaseBackend -[#43A047,bold]down-> GeneratedPDFsTbl
 SupabaseBackend -[#43A047,bold]down-> ScraperJobsTbl
@@ -510,9 +513,9 @@ ScraperService -[#616161]down-> SupabaseBackend
 legend bottom left
   **Architecture:** Clean Architecture + Hexagonal Pattern
   
-  **Stack:** Next.js 14 + Express 4 + PostgreSQL 15 (Supabase) + Gemini AI
+  **Stack:** Next.js 16 + React 19 + Tailwind 4 + Express 5 + PostgreSQL 15 (Supabase) + Gemini AI
   
-  **Metrics:** 12 Pages | 6 Hooks | 13 Routes | 9 Middleware | 2 Controllers | 7 Services | 19 Tables
+  **Metrics:** 12 Pages | 6 Hooks | 13 Routes | 9 Middleware | 2 Controllers | 7 Services | 18 Tables
   
   **Patterns:** Repository (BaseService<T>) • Mediator (Orchestrator) • Singleton (Logger, Config, Cache)
   

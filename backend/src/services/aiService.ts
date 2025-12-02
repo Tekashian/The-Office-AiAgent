@@ -76,8 +76,12 @@ class AIService {
 
       return this.parseResponse(response.data);
     } catch (error) {
+      // If error is already our custom error, just rethrow it
+      if (error instanceof ExternalServiceError || error instanceof ValidationError) {
+        throw error;
+      }
+      // Otherwise, handle axios errors
       this.handleError(error);
-      throw error; // TypeScript requires this after handleError
     }
   }
 

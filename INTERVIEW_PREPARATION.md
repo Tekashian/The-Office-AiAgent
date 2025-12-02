@@ -12,30 +12,202 @@
 ### 1. **Wyjaśnij różnicę między procesem a wątkiem. Jak zarządzasz współbieżnością w aplikacjach?**
 
 **Odpowiedź:**
-- Proces to niezależna jednostka wykonawcza z własną przestrzenią pamięci
-- Wątek to lżejsza jednostka wykonawcza dzieląca pamięć z innymi wątkami w procesie
-- Zarządzanie współbieżnością: goroutines w Go, async/await w Python/JS, muteksy, semafory, channels
-- W projektach stosuję pattern producer-consumer, worker pools, oraz message queues (RabbitMQ, Kafka)
+- **Proces**: niezależna jednostka wykonawcza z własną przestrzenią pamięci
+  - Node.js backend = single process (PID)
+  - Multiple instances dla horizontal scaling
+- **Wątek**: lżejsza jednostka wykonawcza dzieląca pamięć z innymi wątkami
+  - Node.js = single-threaded event loop
+  - Worker threads dla CPU-intensive tasks (potential)
+
+**Zarządzanie współbieżnością w projekcie**:
+
+1. **Node.js Event Loop** (I/O bound operations):
+   ```typescript
+   // Non-blocking I/O
+   const [emails, pdfs, scrapes] = await Promise.all([
+     supabase.from('emails_sent').select(),
+     supabase.from('pdf_files').select(),
+     supabase.from('scrape_jobs').select(),
+   ]);
+   ```
+   - Async/await dla database queries
+   - Event-driven architecture
+   - Non-blocking I/O
+
+2. **Promise.all** dla parallel operations:
+   ```typescript
+   // AgentOrchestrator - multiple API calls
+   const results = await Promise.all(
+     urls.map(url => scraperService.scrape(url))
+   );
+   ```
+
+3. **Async Queue Pattern** (potential improvement):
+   - RabbitMQ/SQS dla background jobs
+   - Worker pattern: multiple consumers
+   - Producer: API endpoint dodaje task do queue
+   - Consumer: worker process wykonuje task
+
+4. **Database Connection Pooling**:
+   - Supabase handles automatically
+   - Multiple concurrent queries
+   - Connection reuse
+
+5. **Rate Limiting** (prevent overwhelming):
+   - Express Rate Limit middleware
+   - In-memory store (sliding window)
+   - Per-IP limiting
+
+6. **Graceful Degradation**:
+   - Timeout limits (30s dla AI calls)
+   - Circuit breaker pattern (potential)
+   - Retry logic z exponential backoff
+
+**Other Languages Context** (z doświadczenia):
+- Go: goroutines + channels (lightweight threads)
+- Python: asyncio, threading, multiprocessing
+- Message queues: RabbitMQ, Kafka dla distributed systems
 
 ---
 
 ### 2. **Co to jest CAP theorem i jak wpływa na projektowanie systemów rozproszonych?**
 
 **Odpowiedź:**
-- CAP: Consistency, Availability, Partition Tolerance - można wybrać maksymalnie 2 z 3
-- W praktyce partition tolerance jest konieczna, więc wybieramy między CP (consistency) lub AP (availability)
-- Przykłady: PostgreSQL (CP), Cassandra (AP), eventual consistency w systemach rozproszonych
-- W projektach balansuję między silną spójnością a dostępnością w zależności od wymagań biznesowych
+- **CAP Theorem**: Consistency, Availability, Partition Tolerance - można wybrać maksymalnie 2 z 3
+- W praktyce **partition tolerance jest konieczna** (sieć zawsze może się rozdzielić)
+- Wybieramy między:
+  - **CP (Consistency)**: silna spójność kosztem availability
+  - **AP (Availability)**: zawsze dostępne kosztem eventual consistency
+
+**W projekcie The-Office-Agent-AI**:
+- **Supabase PostgreSQL = CP system**:
+  - ACID transactions
+  - Strong consistency
+  - Replikacja z synchronous commit (opcjonalne)
+  - Trade-off: downtime podczas network partition
+- **Use case**: financial data, user profiles, email configs
+  - Wymagamy spójności (nie można mieć 2 różnych wersji email config)
+
+**Eventual Consistency w projekcie**:
+- **Supabase Realtime** (AP characteristics):
+  - WebSocket subscriptions
+  - Może być lag między write a notification
+  - Acceptable dla notifications (not critical)
+- **Cache layer** (potential Redis):
+  - Cache invalidation = eventual consistency
+  - TTL-based expiration
+  - Acceptable dla dashboard stats
+
+**Examples z innych systemów**:
+- **PostgreSQL** (CP): banking, core data
+- **Cassandra** (AP): logs, analytics, time-series
+- **MongoDB** (tunable): eventual → strong consistency configurable
+- **DynamoDB** (AP default): high availability, geo-replication
+
+**Practical Decision**:
+- User profiles, email configs: **CP** (strong consistency wymagana)
+- Notifications, activity feed: **AP** (eventual consistency OK)
+- Dashboard stats: **AP** (cached, eventual consistency acceptable)
 
 ---
 
 ### 3. **Jak działa garbage collection i jakie ma wpływ na wydajność aplikacji?**
 
 **Odpowiedź:**
-- GC automatycznie zarządza pamięcią, usuwając nieużywane obiekty
-- Go: concurrent mark-and-sweep, Python: reference counting + cycle detector
-- Wpływ: pauzy GC (stop-the-world), zwiększone użycie CPU, latency spikes
-- Optymalizacja: object pooling, zmniejszenie alokacji, tuning parametrów GC, profiling (pprof w Go)
+**Node.js V8 Engine** (używany w projekcie):
+
+**GC Generations**:
+1. **Young Generation** (short-lived objects):
+   - Scavenge algorithm (fast, frequent)
+   - Request handlers, temporary variables
+   - Most objects die here
+
+2. **Old Generation** (long-lived objects):
+   - Mark-Sweep-Compact (slower, less frequent)
+   - Singletons, services, cached data
+
+**Wpływ na wydajność**:
+- **Pauzy GC** (stop-the-world):
+  - Young gen: 1-10ms (acceptable)
+  - Old gen: 50-200ms (noticeable)
+  - Incremental marking zmniejsza pauzy
+- **CPU overhead**: 5-15% w typical workload
+- **Latency spikes**: P99 latency wzrasta podczas GC
+
+**Monitoring w projekcie**:
+```typescript
+// utils/performance.ts
+export function startMemoryMonitoring(interval: number = 300000) {
+  setInterval(() => {
+    const memUsage = process.memoryUsage();
+    logger.info('Memory usage', {
+      rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+      external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+    });
+  }, interval);
+}
+
+// Enabled w production
+if (config.isProduction()) {
+  startMemoryMonitoring(300000); // Every 5 minutes
+}
+```
+
+**Optymalizacja w projekcie**:
+
+1. **Object Pooling** (potential):
+   ```typescript
+   // Reuse objects zamiast create new
+   const bufferPool = new BufferPool();
+   ```
+
+2. **Zmniejszenie alokacji**:
+   ```typescript
+   // Bad: creates array every call
+   function getUsers() {
+     return users.filter(u => u.active);
+   }
+   
+   // Better: cache result
+   const activeUsers = users.filter(u => u.active);
+   ```
+
+3. **Streaming dla dużych danych**:
+   ```typescript
+   // Email attachments: stream zamiast buffer
+   const stream = fs.createReadStream(filePath);
+   stream.pipe(response);
+   ```
+
+4. **Memory Leaks Prevention**:
+   - Clear intervals/timeouts
+   - Cleanup event listeners
+   - Close database connections
+   - Remove Supabase subscriptions
+   ```typescript
+   useEffect(() => {
+     const channel = supabase.channel('...');
+     channel.subscribe();
+     return () => supabase.removeChannel(channel); // Cleanup!
+   }, []);
+   ```
+
+5. **V8 Flags** (production tuning):
+   ```bash
+   node --max-old-space-size=4096 dist/index.js  # Increase heap
+   node --expose-gc dist/index.js                 # Manual GC access
+   ```
+
+**Profiling Tools**:
+- Node.js built-in: `node --inspect`
+- Chrome DevTools: memory profiler, heap snapshot
+- Clinic.js: flame graphs, memory analysis
+
+**Other Languages Context**:
+- **Go**: concurrent mark-and-sweep, STW pauses <1ms, pprof profiling
+- **Python**: reference counting + cycle detector, manual `gc.collect()`
 
 ---
 
@@ -135,39 +307,262 @@
 ### 12. **Co to jest Docker i jak różni się od maszyny wirtualnej?**
 
 **Odpowiedź:**
-- Docker: konteneryzacja na poziomie OS, dzielenie kernela
-- VM: pełna wirtualizacja z własnym OS
-- Kontenery: lżejsze, szybszy start, mniejsze zużycie zasobów
-- Docker: image layers, Dockerfile, registry (Docker Hub)
-- Izolacja: namespaces, cgroups
-- Kubernetes do orkiestracji kontenerów w production
-- Multi-stage builds dla optymalizacji rozmiaru image
+**Docker vs VM**:
+
+| Aspect | Docker Container | Virtual Machine |
+|--------|------------------|------------------|
+| Isolation | OS-level (namespaces, cgroups) | Hardware-level (hypervisor) |
+| Kernel | Shared host kernel | Own OS kernel |
+| Size | 10-100s MB | GBs (full OS) |
+| Startup | Seconds | Minutes |
+| Resources | Lightweight | Heavy |
+| Portability | High (runs anywhere) | Medium (hypervisor dependent) |
+
+**Docker Concepts**:
+- **Image**: read-only template (Dockerfile → build → image)
+- **Container**: running instance of image
+- **Registry**: Docker Hub, private registry
+- **Volumes**: persistent data
+- **Networks**: container communication
+
+**W projekcie The-Office-Agent-AI** (potential Dockerization):
+
+**Backend Dockerfile**:
+```dockerfile
+# Multi-stage build
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY package*.json ./
+
+EXPOSE 3001
+CMD ["node", "dist/index.js"]
+```
+
+**Frontend Dockerfile**:
+```dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+**docker-compose.yml**:
+```yaml
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - AI_API_KEY=${AI_API_KEY}
+    volumes:
+      - ./backend/uploads:/app/uploads
+    restart: unless-stopped
+  
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+    depends_on:
+      - backend
+    restart: unless-stopped
+```
+
+**Multi-stage Build Benefits**:
+- Smaller final image (no build tools)
+- Separate build dependencies
+- Layer caching optimization
+- Security: minimal attack surface
+
+**Docker Commands**:
+```bash
+# Build
+docker build -t office-agent-backend:latest ./backend
+
+# Run
+docker run -p 3001:3001 --env-file .env office-agent-backend
+
+# Compose
+docker-compose up -d
+docker-compose logs -f backend
+docker-compose down
+```
+
+**Benefits dla projektu**:
+- ✅ Consistent environment (dev = prod)
+- ✅ Easy deployment (Railway, AWS ECS)
+- ✅ Dependency isolation
+- ✅ Version control (image tags)
+- ✅ Scalability (Kubernetes ready)
+
+**Kubernetes** (future orchestration):
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: office-agent-backend:latest
+        ports:
+        - containerPort: 3001
+        env:
+        - name: NODE_ENV
+          value: "production"
+```
+
+**Current State**: 
+- ❌ Not Dockerized yet (tech debt)
+- Manual deployment (Railway, Vercel)
+- Potential for containerization
 
 ---
 
 ### 13. **Jak implementujesz CI/CD pipeline? Jakie są best practices?**
 
-**Odpowiedź:**
-- Stages: Build → Test → Deploy
-- Automated testing: unit, integration, e2e
-- Static analysis, linting, security scanning
-- Artifact management, version tagging
-- Blue-green deployment, canary releases, rollback strategy
-- Infrastructure as Code (Terraform, CloudFormation)
-- Narzędzia: GitHub Actions, GitLab CI, Jenkins, CircleCI
-- Secrets management, environment-specific configs
+**Odpowiedź (Prosto):**
+
+**Co to CI/CD?**
+- **CI** (Continuous Integration) = Automatyczne testowanie każdej zmiany w kodzie
+- **CD** (Continuous Deployment) = Automatyczne wdrażanie na serwer
+
+**3 Kroki Pipeline:**
+1. **Build** 📦
+   - Kompilacja kodu (TypeScript → JavaScript)
+   - Instalacja zależności (npm install)
+   - Tworzenie paczki gotowej do uruchomienia
+
+2. **Test** 🧪
+   - Unit tests - czy funkcje działają?
+   - Integration tests - czy komponenty współpracują?
+   - Linting - czy kod jest czysty?
+   - Security scan - czy brak dziur bezpieczeństwa?
+
+3. **Deploy** 🚀
+   - Wrzucenie na serwer (Railway, Vercel)
+   - Uruchomienie nowej wersji
+   - Sprawdzenie czy działa (health check)
+
+**Best Practices (Dobre Praktyki):**
+- ✅ **Każdy push → automatyczne testy** (GitHub Actions)
+- ✅ **Zielony test = automatyczny deploy** (jak test przechodzi → wdrażaj)
+- ✅ **Rollback ready** (coś nie działa? → wróć do poprzedniej wersji jednym klikiem)
+- ✅ **Secrets w bezpiecznym miejscu** (hasła nie w kodzie, tylko w GitHub Secrets)
+- ✅ **Deploy strategies**:
+  - **Blue-Green**: masz 2 serwery - nowa wersja idzie na nieaktywny, przełączasz ruch
+  - **Canary**: nowa wersja dla 10% użytkowników najpierw, jak działa → reszta
+  
+**W projekcie (planned):**
+```yaml
+# GitHub Actions workflow
+git push → 
+  → npm install
+  → npm test (gdy będą testy)
+  → npm run build
+  → deploy to Railway (backend)
+  → deploy to Vercel (frontend)
+  → ✅ gotowe!
+```
+
+**Narzędzia:**
+- GitHub Actions (automatyzacja w repo)
+- Railway/Vercel (hosting z auto-deploy)
+- Supabase (database - schema migrations)
 
 ---
 
 ### 14. **Opisz wzorzec Repository i dlaczego jest użyteczny.**
 
-**Odpowiedź:**
-- Abstrakcja dostępu do danych od logiki biznesowej
-- Interface definiujący operacje CRUD
-- Zalety: testability (mock repository), separation of concerns, łatwa zmiana DB
-- Struktura: Repository Interface → Implementation → Service Layer
-- W Go często używam z dependency injection
-- Unit of Work pattern dla transakcji
+**Odpowiedź (Prosto):**
+
+**Co to Repository Pattern?**
+To jak "kelner w restauracji" między Twoim kodem a bazą danych.
+
+**Zamiast:**
+```typescript
+// Bezpośrednio w kontrolerze (ZŁE)
+app.get('/users', (req, res) => {
+  const users = supabase.from('users').select('*'); // 😱
+  res.json(users);
+});
+```
+
+**Robisz:**
+```typescript
+// Repository (warstwa pośrednia)
+class UserRepository {
+  async findAll() {
+    return supabase.from('users').select('*');
+  }
+  async findById(id) {
+    return supabase.from('users').select('*').eq('id', id);
+  }
+}
+
+// Kontroler (CZYSTO)
+app.get('/users', async (req, res) => {
+  const users = await userRepo.findAll(); // 😊
+  res.json(users);
+});
+```
+
+**Dlaczego to fajne?**
+1. **Łatwe testowanie** 🧪
+   - Możesz podmienić prawdziwą bazę na fake'ową w testach
+   ```typescript
+   const fakeRepo = { findAll: () => [{ id: 1, name: 'Test' }] };
+   ```
+
+2. **Zmiana bazy? No problem!** 🔄
+   - PostgreSQL → MongoDB? Zmieniasz tylko Repository
+   - Reszta kodu nie wie, nie obchodzi
+
+3. **Czysty kod** ✨
+   - Kontroler: "Daj mi użytkowników" (CO)
+   - Repository: "SELECT * FROM users" (JAK)
+
+**W projekcie:**
+- ✅ `BaseService<T>` = nasz własny Repository pattern
+- ✅ `UserContextService extends BaseService`
+- ⚠️ Tech debt: większość routes robi direct Supabase queries (brak repository)
 
 ---
 
@@ -262,80 +657,158 @@
 ### 1. **Opisz ogólną architekturę projektu The-Office-Agent-AI. Jakie są główne komponenty?**
 
 **Odpowiedź:**
-- Backend (Node.js/TypeScript): REST API, orchestrator agentów
-- Frontend (Next.js/React): UI, dashboard, formularz
-- Supabase: PostgreSQL database, authentication, storage
-- Główne moduły:
-  - Agent Orchestrator: zarządzanie agentami AI
-  - Email Service: IMAP inbox, templates, wysyłanie
-  - Scraper Service: web scraping, data extraction
-  - PDF Service: generowanie dokumentów
-  - Task Management: cron jobs, notifications
-  - User Context: personalizacja, preferencje
+- **Backend** (Node.js/TypeScript + Express):
+  - 13 REST API routes z 70+ endpoints
+  - Agent Orchestrator jako centralny hub
+  - 8 service layers (AIService, PDFService, ScraperService, CronService, EmailInboxService, UserContextService + BaseService pattern)
+  - 5 middleware: auth, errorHandler, rateLimit, requestLogger, validation
+- **Frontend** (Next.js 16 App Router + React 19):
+  - 12 route pages (agent, email, inbox, pdf, scraper, tasks, notifications, settings)
+  - Shadcn/ui component library, Tailwind CSS 4
+  - Client/Server Components separation
+- **Supabase Stack**:
+  - PostgreSQL: 18 tabel z RLS policies
+  - Auth: JWT tokens, session management
+  - Storage: attachments, PDFs, uploaded files
+  - Realtime: WebSocket subscriptions dla notifications
+- **External Integrations**:
+  - Google Gemini AI (gemini-2.5-flash model)
+  - IMAP/SMTP (Gmail, Outlook) dla email inbox
+  - Nodemailer dla email sending
 
 ---
 
 ### 2. **Jak zaimplementowałeś autentykację w projekcie? Jakie mechanizmy bezpieczeństwa stosowałeś?**
 
 **Odpowiedź:**
-- Supabase Auth: JWT tokens, session management
-- Middleware auth.ts: weryfikacja tokenów, route protection
-- Row Level Security (RLS) w Supabase dla data isolation
-- HTTPS only, secure cookies
-- Password hashing (bcrypt), email verification
-- Rate limiting na endpoint'ach auth
-- CORS configuration
-- Input validation, sanitization przeciw injection attacks
+- **Supabase Auth**: JWT tokens z `supabase.auth.getUser(token)`
+- **Middleware auth.ts**: 
+  - `authenticateUser` - wymagana autentykacja, dodaje `userId` i `userEmail` do request
+  - `optionalAuth` - opcjonalna autentykacja (nie blokuje requestu)
+  - Token extraction z `Authorization: Bearer <token>` header
+- **Security layers**:
+  - Helmet.js: Content Security Policy, security headers
+  - CORS: konfiguracja allowed origins, credentials, methods
+  - Rate limiting: relaxed (100 req/15min), strict dla AI (10 req/min)
+  - Request logging z correlation IDs dla request tracing
+  - Compression middleware
+- **Database security**:
+  - Row Level Security (RLS) policies na wszystkich 18 tabelach
+  - Supabase Service Role Key dla admin operations (bypass RLS)
+  - Encrypted SMTP credentials (AES-256 w user_email_configs)
+- **Input validation**: Zod schemas w validation middleware
 
 ---
 
 ### 3. **Wyjaśnij jak działa Agent Orchestrator w tym projekcie.**
 
 **Odpowiedź:**
-- Centralny komponent zarządzający multiple AI agents
-- Orchestration logic: routing zapytań do odpowiednich agentów
-- State management: tracking konwersacji, kontekst
-- Integration z LLM APIs (OpenAI, Anthropic)
-- Prompt engineering: system prompts, context injection
-- Error handling, retry logic dla API calls
-- Logging conversations dla audytu
-- Możliwość równoległego przetwarzania requestów
-- Monitoring: latency, token usage, error rates
+- **Centralny dispatcher**: analizuje intent użytkownika i wybiera odpowiednie tool
+- **Tool registry** (5 tools):
+  - `send_email` - wysyłanie emaili (integracja z IMAP/SMTP)
+  - `generate_pdf` - tworzenie PDF dokumentów
+  - `scrape_website` - web scraping (Cheerio)
+  - `create_cron_job` - scheduled tasks
+  - `conversation` - zwykła konwersacja AI
+- **Google Gemini Integration**:
+  - Model: gemini-2.5-flash
+  - API call przez aiService z temperature 0.7, max 2000 tokens
+  - System prompt z tool definitions i language detection (Polish/English)
+- **Intent Detection Flow**:
+  1. Wykrycie języka (Polish indicators: ą,ć,ę,ł,ń,ó,ś,ź,ż + keywords)
+  2. AI decyzja: który tool użyć + reasoning + parameters
+  3. Execution: wywołanie odpowiedniej metody (executeSendEmail, executeGeneratePDF, etc.)
+  4. Response formatting w języku użytkownika
+- **Email execution** (143 linie kodu):
+  - Pobiera IMAP config z bazy (encrypted password)
+  - Decryption hasła (AES-256)
+  - AI enhancement emaila (professional formatting)
+  - Dodanie signature z user profile
+  - Wysłanie przez nodemailer (Gmail SMTP)
+  - Zapis do emails_sent table
+- **User Context injection**: preferences, company, signature
+- **Error handling**: try-catch z user-friendly messages
+- **Logging**: Winston logger z structured logs
 
 ---
 
 ### 4. **Jak zaprojektowałeś strukturę bazy danych? Opisz główne tabele i relacje.**
 
 **Odpowiedź:**
-- Users: authentication, profiles
-- Email_inbox: IMAP messages, attachments
-- Email_templates: reusable templates z placeholders
-- Email_configs: IMAP/SMTP settings per user
-- Tasks: scheduled jobs, cron definitions
-- Notifications: user alerts, in-app notifications
-- PDF_templates: document templates
-- Scraper_data: scraped content, metadata
-- User_context: preferences, settings
-- Relacje: Foreign keys, CASCADE deletes, indexes na frequently queried columns
-- RLS policies dla multi-tenancy
+**Główne tabele (18 total w 7 schema files):**
+
+**Core** (supabase-schema.sql - 7 tabel):
+- `user_profiles`: full_name, company, plan (free/pro/enterprise)
+- `user_email_configs`: SMTP credentials (encrypted), per-user config
+- `emails_sent`: history, status (pending/sent/failed), message_id
+- `pdf_files`: generated PDFs, file_path w Supabase Storage
+- `scrape_jobs`: URL, status, result_data (JSONB), error_message
+- `cron_jobs`: schedule (cron expression), task_type, task_config (JSONB), enabled, last_run
+- `chat_messages`: conversation history, role (user/assistant)
+
+**Email System** (3 dodatkowe tabele):
+- `email_templates`: subject, body, placeholders, variables (JSONB)
+- `email_attachments`: foreign key do templates
+- `scheduled_emails`: scheduled send, send_at timestamp
+- `user_imap_configs`: IMAP settings (encrypted password)
+- `emails_inbox`: fetched messages, raw_content, parsed_data (JSONB)
+- `ai_email_drafts`: AI-generated drafts
+- `email_scan_logs`: sync history, errors
+
+**Other**:
+- `notifications`: type, title, message, read status, link
+- `pdf_templates`: reusable templates
+- `scrape_history`: scraping logs
+
+**Indeksy**: 11 indexes na user_id, status, enabled, created_at dla query performance
+
+**RLS Policies**: każda tabela ma policies:
+- SELECT: `auth.uid() = user_id`
+- INSERT: `auth.uid() = user_id`
+- UPDATE: `auth.uid() = user_id`
+- DELETE: `auth.uid() = user_id`
+
+**Foreign Keys**: wszystkie z `ON DELETE CASCADE` dla automatic cleanup
 
 ---
 
 ### 5. **Jak implementujesz Email Inbox z IMAP? Jakie wyzwania napotkałeś?**
 
 **Odpowiedź:**
-- node-imap library dla connection
-- Polling strategy vs IDLE command dla real-time
-- Authentication: OAuth2 dla Gmail, app passwords dla innych
-- Parsing email structure: multipart messages, attachments
-- Wyzwania:
-  - Connection stability, reconnection logic
-  - Memory management dla dużych attachments
-  - Rate limiting różnych providerów (Gmail, Outlook)
-  - Character encoding issues
-  - Spam detection, phishing protection
-- Storage: attachments w Supabase Storage
-- Background jobs dla periodic sync
+- **EmailInboxService** (522 linie kodu):
+  - Library: `node-imap` + `mailparser`
+  - Connection flow:
+    1. Fetch encrypted config z `user_imap_configs` table
+    2. Decrypt password (AES-256)
+    3. Create IMAP connection z TLS
+    4. openBox('INBOX', false) - read-only mode
+  - **Scanning strategy**:
+    - Search criteria: 'ALL' lub 'UNSEEN'
+    - Fetch attributes: uid, flags, internaldate, body structure
+    - Stream parsing: mailparser dla headers + body + attachments
+  - **Data extraction**:
+    - Headers: from, to, subject, date, message-id
+    - Body: text, html (both stored)
+    - Attachments: download do memory → upload do Supabase Storage → get signed URL
+    - Result stored as JSONB w `emails_inbox` table
+
+**Wyzwania i rozwiązania**:
+- **Connection stability**: 
+  - Timeout 30s, reconnection logic
+  - Event handlers: error, end, close
+  - Graceful disconnect w cleanup
+- **Memory management**: 
+  - Streaming attachments zamiast buffer całości
+  - Limit rozmiaru attachmentów
+- **Rate limiting**: 
+  - Respect provider limits (Gmail: 15 req/sec)
+  - Exponential backoff dla failed connections
+- **Encoding**: 
+  - Mailparser automatyczny decode (UTF-8, base64, quoted-printable)
+- **Security**:
+  - Validate sender, check SPF/DKIM potential
+  - Store w encrypted fields
+- **Providers support**: Gmail, Outlook, custom IMAP (port 993 SSL, 143 STARTTLS)
 
 ---
 
@@ -375,32 +848,88 @@
 ### 8. **Jak generujesz PDFy? Opisz proces od template do final document.**
 
 **Odpowiedź:**
-- PDF library: pdfkit lub puppeteer (HTML to PDF)
-- Template approach: HTML + CSS → PDF rendering
-- Dynamic data injection: podobnie jak email templates
-- Support dla: images, tables, custom fonts, headers/footers
-- Storage: Supabase Storage z signed URLs
-- Generation queue dla async processing
-- Preview przed finalizacją
-- Metadata: author, creation date, permissions
-- Optimization: compression, file size limits
-- Security: access control, expiration links
+- **PDFService** używa `pdfkit` library (nie puppeteer)
+- **Generation flow** (executeGeneratePDF w AgentOrchestrator):
+  1. User request przez AI agent z title + content
+  2. Create PDFDocument instance
+  3. Buffering: pipe do array, concat chunks
+  4. **Content rendering**:
+     - Title: fontSize 24, bold font
+     - Content: fontSize 12, line breaks respected
+     - Dodatkowe: images (optional), tables (manual layout)
+  5. **Metadata**: info object (Title, Author, Subject, CreationDate)
+  6. doc.end() - finalize
+  7. **Storage**:
+     - Filename: `${title.replace(/\s+/g, '_')}_${Date.now()}.pdf`
+     - Upload do Supabase Storage bucket 'pdfs'
+     - Public URL generation
+  8. **Database record**: insert do `pdf_files` table
+     - user_id, title, filename, file_path, file_size, created_at
+  9. Return success message z file ID
+
+**Features**:
+- **Font support**: Helvetica (default), można dodać custom fonts
+- **Page size**: A4 (595.28 x 841.89 points)
+- **Text formatting**: 
+  - moveDown() dla spacing
+  - text() z options (align, width, continued)
+- **Images**: doc.image(buffer, options)
+- **Security**: RLS - user może access tylko swoje PDFy
+- **File size**: tracking w database, limits można dodać
+- **Preview**: frontend może fetch public URL od razu
+- **Async**: całość async/await, non-blocking
+
+**Tech debt**: brak template system (hardcoded formatting), można dodać template engine
 
 ---
 
 ### 9. **Jak zarządzasz scheduled tasks (cron jobs) w aplikacji?**
 
 **Odpowiedź:**
-- Node-cron lub agenda dla job scheduling
-- Endpoint API trigger dla external cron services (cron-job.org)
-- Task definitions stored w database
-- Types: email sync, scraper runs, notifications cleanup
-- Execution tracking: last run, next run, status
-- Error handling, retry policy
-- Logging wszystkich executions
-- Monitoring: failed jobs alerts
-- Scalability: distributed locks dla multiple instances
-- Admin panel do zarządzania tasks
+- **CronService** używa `node-cron` library
+- **Architektura**:
+  - In-memory job registry: `Map<string, ScheduledTask>`
+  - Each task: { schedule, callback, nodeTask }
+  - CRUD operations: createJob, updateJob, deleteJob, listJobs
+
+**Create Job Flow** (przez AgentOrchestrator):
+1. User request: "schedule email every Monday at 9am"
+2. AI extracts: name, schedule (cron expression), task_type, task_config
+3. Insert do `cron_jobs` table (user_id, enabled=true)
+4. CronService.createJob():
+   - Validate cron expression
+   - Create node-cron task: `cron.schedule(schedule, callback)`
+   - Callback wykonuje task_type (email/pdf/scraper)
+   - Store w in-memory registry
+5. Start immediately jeśli enabled=true
+
+**Task Execution**:
+- Callback async function:
+  - Fetch fresh config z DB
+  - Execute based on task_type:
+    - `email`: call AgentOrchestrator.executeSendEmail(task_config)
+    - `pdf`: call executeGeneratePDF(task_config)
+    - `scraper`: call executeScrapeSite(task_config)
+  - Update `last_run` timestamp
+  - Increment `execution_count`
+  - Log success/failure
+- **Error handling**: try-catch, error saved to database
+
+**Cron Expression Examples**:
+- "0 9 * * 1" = Every Monday at 9am
+- "0 */2 * * *" = Every 2 hours
+- "0 0 * * *" = Daily at midnight
+- "*/15 * * * *" = Every 15 minutes
+
+**Monitoring**:
+- `/api/cron` routes: GET all, POST create, DELETE remove
+- Frontend dashboard pokazuje: status, last run, execution count
+- Failed jobs: error_message w database
+
+**Scalability limitation**: 
+- In-memory registry = jobs reset on server restart
+- Należy reload jobs z DB on startup
+- Brak distributed locks (single instance only)
 
 ---
 
@@ -422,178 +951,989 @@
 ### 11. **Jak obsługujesz błędy w aplikacji? Opisz error handling strategy.**
 
 **Odpowiedź:**
-- Error middleware w Express: centralized error handling
-- Custom error classes: ValidationError, AuthenticationError, NotFoundError
-- HTTP status codes: proper use of 4xx, 5xx
-- Error responses: consistent JSON structure {error, message, details}
-- Logging: Winston/Pino dla structured logs
-- Nie expose'owanie sensitive info w error messages
-- Try-catch blocks w async functions
-- Frontend: error boundaries w React, user-friendly messages
-- Monitoring: Sentry/error tracking service integration
-- Graceful degradation gdzie możliwe
+**Backend Error Architecture**:
+
+**Custom Error Classes** (utils/errors.ts):
+```typescript
+- BaseError (abstract)
+- ValidationError (400) - invalid input
+- AuthenticationError (401) - missing/invalid token
+- AuthorizationError (403) - insufficient permissions
+- NotFoundError (404) - resource not found
+- ConflictError (409) - duplicate resource
+- RateLimitError (429) - too many requests
+- ExternalServiceError (502) - third-party API failures
+- InternalServerError (500) - unexpected errors
+```
+
+**Error Middleware** (errorHandler.ts):
+1. `notFoundHandler`: catches 404 dla undefined routes
+2. `errorHandler`: centralized error processing
+   - Match error type → appropriate status code
+   - Format response: `{success: false, error: type, message, details?}`
+   - Log z correlation ID
+   - Production: sanitize stack traces
+   - Development: full error details
+
+**Logging Strategy** (Winston logger):
+- Structured logs: `logger.error(message, {error, userId, correlationId})`
+- Log levels: ERROR, WARN, INFO, DEBUG
+- Production: JSON format dla log aggregation
+- Development: pretty-print z kolorami
+
+**Try-Catch Patterns**:
+```typescript
+try {
+  // operation
+} catch (error) {
+  logger.error('Operation failed', error);
+  throw new ExternalServiceError('ServiceName', error.message);
+}
+```
+
+**Frontend Error Handling**:
+- axios interceptor: catch 401 → redirect to /auth
+- Error boundaries dla React component crashes
+- User-friendly messages: "Coś poszło nie tak" zamiast stack trace
+- Toast notifications dla user feedback
+
+**Graceful Degradation**:
+- AI enhancement failure → use original email
+- Cache miss → fetch from source
+- Optional features fail silently
+
+**Process-level handlers**:
+```typescript
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception', error);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection', reason);
+  process.exit(1);
+});
+```
 
 ---
 
 ### 12. **Jak zaimplementowałeś User Context? Co przechowujesz o użytkowniku?**
 
 **Odpowiedź:**
-- User preferences: language, timezone, notification settings
-- Application state: ostatnio używane features, favorites
-- Personalization data dla AI agents
-- Activity tracking: last login, usage statistics
-- Settings persistence w Supabase
-- Context injection do AI prompts dla personalized responses
-- Privacy: GDPR compliance, data minimization
-- Encrypted sensitive data
-- User export/delete functionality
-- Migration system dla schema changes
+- **UserContextService** extends BaseService (97 linii kodu)
+
+**Data przechowywana w `user_profiles`**:
+```typescript
+{
+  user_id: UUID,
+  full_name: string,
+  company: string,
+  job_title: string,          // dla email signatures
+  email_signature: text,      // formatted signature z placeholders
+  plan: 'free' | 'pro' | 'enterprise',
+  preferences: JSONB {        // flexible schema
+    language: 'pl' | 'en',
+    timezone: string,
+    notification_settings: {...},
+    theme: 'light' | 'dark'
+  },
+  created_at, updated_at
+}
+```
+
+**Context Injection do AI**:
+- `getUserContext(userId)` zwraca formatted string:
+```
+User Context:
+- Name: [full_name]
+- Company: [company]
+- Position: [job_title]
+- Preferences: [JSON.stringify(preferences)]
+```
+- Automatic injection w `aiService.sendRequest()` gdy `includeContext !== false`
+- Prepended do user prompt dla personalization
+
+**Email Signature System**:
+- Template z placeholders: `{{name}}`, `{{position}}`, `{{company}}`
+- Runtime replacement w AgentOrchestrator przed sending email
+- Example:
+```
+Z poważaniem,
+{{name}}
+{{position}}
+{{company}}
+```
+
+**API Endpoints** (`/api/user/context`):
+- GET - fetch user context
+- POST - create/update context
+- DELETE - remove context (GDPR compliance)
+
+**BaseService Pattern**:
+- Generic CRUD operations
+- Automatic error handling
+- Consistent response format
+- Validation hooks
+
+**Privacy & Security**:
+- RLS policies: user widzi tylko swoje dane
+- Nie przechowujemy sensitive data (passwords w encrypted tables)
+- User może export/delete przez API
+- JSONB dla flexible schema bez migrations
 
 ---
 
 ### 13. **Jak zapewniasz skalowalność backendu? Jakie pattern'y zastosowałeś?**
 
 **Odpowiedź:**
-- Stateless API: horizontal scaling możliwe
-- Connection pooling dla database
-- Caching z Redis dla expensive operations
-- Async processing: queue jobs dla long-running tasks
-- Rate limiting per user
-- Database indexes, query optimization
-- CDN dla static assets
-- Load balancing ready (brak session storage w memory)
-- Monitoring resource usage
-- Graceful shutdown handling
-- Environment-based configuration
+**Implemented Patterns**:
+
+1. **Stateless API Design**:
+   - Brak session storage w memory
+   - JWT tokens dla auth (client-side storage)
+   - Each request self-contained
+   - Horizontal scaling ready
+
+2. **Supabase Connection Pooling**:
+   - Supabase handles connection pooling automatically
+   - `supabase` client dla user operations (RLS respected)
+   - `supabaseAdmin` dla admin operations (bypass RLS)
+   - Reuse client instances (singleton pattern)
+
+3. **Rate Limiting** (rateLimit middleware):
+   - In-memory store z Express Rate Limit
+   - Presets:
+     - `relaxed`: 100 req / 15min (default)
+     - `strict`: 30 req / 15min
+     - `ai`: 10 req / 1min (expensive operations)
+   - Per-IP limiting
+   - Custom rate limit per route group
+
+4. **Database Optimization**:
+   - 11 indexes na hot paths (user_id, status, created_at)
+   - JSONB dla flexible data (scrape results, task configs)
+   - Selective column fetching: `.select('id, title, status')`
+   - RLS policies compiled at database level
+
+5. **Performance Monitoring**:
+   - `responseTime` middleware: X-Response-Time header
+   - Memory monitoring w production (every 5min)
+   - Structured logging z correlation IDs
+   - Request/response logging
+
+6. **Compression**:
+   - Compression middleware (gzip/deflate)
+   - Response size reduction
+
+7. **Async Operations**:
+   - Wszystkie DB calls async/await
+   - Non-blocking I/O
+   - Promise.all dla parallel operations
+
+8. **Graceful Shutdown**:
+```typescript
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, closing server');
+  setTimeout(() => process.exit(0), 10000); // 10s grace period
+});
+```
+
+9. **Config Management**:
+   - Centralized Config class (singleton)
+   - Environment-based settings
+   - Validation on startup
+
+**Limitations (Tech Debt)**:
+- ❌ No Redis cache (Supabase direct queries)
+- ❌ No message queue (synchronous task execution)
+- ❌ No distributed cron (in-memory registry)
+- ❌ Rate limiting in-memory (reset on restart)
+
+**Ready for Scale**:
+- ✅ Deploy multiple instances (stateless)
+- ✅ Add Redis dla cache + rate limiting persistence
+- ✅ Add RabbitMQ/SQS dla background jobs
+- ✅ Supabase scales automatically
 
 ---
 
 ### 14. **Opisz strukturę routes w backendzie. Jak organizujesz endpoints?**
 
 **Odpowiedź:**
-- RESTful convention: /api/resource
-- Grouped by domain:
-  - /api/agent - AI agent interactions
-  - /api/email - email operations (send, templates)
-  - /api/email-inbox - inbox management
-  - /api/scraper - scraping jobs
-  - /api/pdf - PDF generation
-  - /api/tasks - cron task management
-  - /api/notifications - notification CRUD
-  - /api/user-context - user settings
-- Versioning consideration: /api/v1
-- Auth middleware applied per route group
-- Input validation middleware
-- Rate limiting per endpoint
+**13 Route Modules** w `backend/src/routes/`:
+
+1. **agentRoutes.ts** - `/api/agent`
+   - POST `/chat` - AI conversation
+   - POST `/action` - execute tool (email, pdf, scraper, cron)
+
+2. **aiRoutes.ts** - `/api/ai` (rate limit: 10/min)
+   - POST `/chat` - direct Gemini API access
+   - POST `/generate` - text generation
+
+3. **emailRoutes.ts** - `/api/email`
+   - POST `/send` - send email through configured SMTP
+   - GET `/history` - sent emails history
+
+4. **emailInboxRoutes.ts** - `/api/email-inbox`
+   - POST `/scan` - fetch IMAP messages
+   - GET `/` - list inbox messages
+   - GET `/:id` - get single message
+   - DELETE `/:id` - delete message
+
+5. **emailConfigRoutes.ts** - `/api/email-config`
+   - POST `/` - save SMTP/IMAP config
+   - GET `/` - get user configs
+   - DELETE `/:id` - remove config
+
+6. **emailTemplateRoutes.ts** - `/api/email-templates`
+   - POST `/` - create template
+   - GET `/` - list templates
+   - GET `/:id` - get template
+   - PUT `/:id` - update template
+   - DELETE `/:id` - delete template
+
+7. **pdfRoutes.ts** - `/api/pdf`
+   - POST `/generate` - create PDF
+   - GET `/` - list PDFs
+   - GET `/:id` - get PDF metadata
+   - DELETE `/:id` - delete PDF
+
+8. **scraperRoutes.ts** - `/api/scraper`
+   - POST `/scrape` - start scraping job
+   - GET `/jobs` - list scrape jobs
+   - GET `/jobs/:id` - get job result
+
+9. **cronRoutes.ts** - `/api/cron`
+   - POST `/` - create cron job
+   - GET `/` - list jobs
+   - PUT `/:id` - update job
+   - DELETE `/:id` - delete job
+
+10. **userContextRoutes.ts** - `/api/user/context`
+    - GET `/` - get user context
+    - POST `/` - save user context
+    - PUT `/` - update context
+
+11. **notificationRoutes.ts** - `/api/notifications`
+    - GET `/` - list notifications
+    - POST `/` - create notification
+    - PATCH `/:id/read` - mark as read
+    - DELETE `/:id` - delete notification
+
+12. **dashboardRoutes.ts** - `/api/dashboard`
+    - GET `/stats` - overview statistics
+    - GET `/activity` - recent activity
+    - GET `/usage` - usage metrics
+
+13. **searchRoutes.ts** - `/api/search`
+    - GET `/` - search across all resources
+
+**Routing Conventions**:
+- RESTful design: GET (read), POST (create), PUT (update), DELETE (remove)
+- Auth middleware applied globally (except `/health`)
+- Rate limiting per route: default relaxed, AI strict
+- Response format: `{success: boolean, data?: any, message?: string}`
+- Error handling przez errorHandler middleware
+- Input validation przez validation middleware (Zod schemas)
+- CORS enabled dla allowed origins
+
+**Missing Versioning**: brak `/api/v1` - możliwe do dodania w przyszłości
 
 ---
 
 ### 15. **Jak testujesz integrację z external services (Supabase, Email providers, AI APIs)?**
 
 **Odpowiedź:**
-- Mocking w unit tests: jest.mock(), sinon
-- Integration tests z test database (Supabase local)
-- Sandbox accounts dla external APIs
-- Contract testing dla API integrations
-- Test fixtures, sample data
-- Environment variables dla test configs
-- Timeout handling, error simulation
-- Rate limit testing
-- End-to-end tests dla critical flows
-- Manual testing w staging environment
-- Monitoring test coverage
+**Obecny stan (Tech Debt)**:
+- ❌ **Brak automated tests** - `"test": "echo \"Error: no test specified\" && exit 1"`
+- Testing obecnie manualny w development environment
+
+**Planowana strategia testowania**:
+
+**Unit Tests** (do implementacji):
+```typescript
+// Jest + ts-jest
+import { AIService } from './aiService';
+
+jest.mock('axios');
+
+test('AIService.sendRequest should call Gemini API', async () => {
+  const mockResponse = {
+    candidates: [{ content: { parts: [{ text: 'response' }] } }]
+  };
+  axios.post.mockResolvedValue({ data: mockResponse });
+  
+  const result = await aiService.sendRequest({
+    prompt: 'test',
+    userId: 'user-123'
+  });
+  
+  expect(result.content).toBe('response');
+});
+```
+
+**Integration Tests** (z Supabase Local):
+- Supabase CLI: `supabase start` (local Docker containers)
+- Test database z seed data
+- Real Supabase client calls (nie mocks)
+```typescript
+test('Should create user profile', async () => {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .insert({ user_id: testUserId, full_name: 'Test User' });
+  expect(error).toBeNull();
+  expect(data).toBeDefined();
+});
+```
+
+**API Mocking**:
+- **MSW** (Mock Service Worker) dla external APIs
+- Mock Gemini API responses
+- Mock SMTP/IMAP w tests
+
+**E2E Tests** (Playwright potential):
+- Critical flows: signup → configure email → send email
+- Agent interactions
+- PDF generation end-to-end
+
+**Test Coverage Goals**:
+- Services: 80%+ (business logic)
+- Routes: 70%+ (API contracts)
+- Utils: 90%+ (pure functions)
+- Integration: critical paths only
+
+**Development Dependencies** (do dodania):
+```json
+"jest": "^29.0.0",
+"ts-jest": "^29.0.0",
+"@types/jest": "^29.0.0",
+"supertest": "^6.0.0",  // API testing
+"msw": "^2.0.0"         // API mocking
+```
+
+**Environment Variables dla Testów**:
+- `.env.test` z test credentials
+- Sandbox accounts dla Gmail, Gemini
+- Test Supabase project
+
+**CI/CD Integration** (future):
+- GitHub Actions workflow
+- Run tests on PR
+- Coverage reports
 
 ---
 
 ### 16. **Jak zaprojektowałeś frontend architecture? Opisz folder structure.**
 
 **Odpowiedź:**
-- Next.js App Router: app/ directory structure
-- Route-based organization:
-  - app/agent - AI chat interface
-  - app/email - email management
-  - app/email-inbox - inbox view
-  - app/tasks - task dashboard
-  - app/notifications - notification center
-  - app/settings - user settings
-- components/: reusable UI components
-  - layout/ - navigation, sidebar
-  - ui/ - buttons, forms, modals (shadcn/ui)
-- lib/: utilities, API client, auth helpers
-- types/: TypeScript interfaces
-- context/: React Context dla global state
-- Separation of concerns, component reusability
+**Next.js 16 App Router** (React 19, Tailwind 4)
+
+**Directory Structure**:
+```
+frontend/
+├── app/                    # Next.js App Router
+│   ├── layout.tsx         # Root layout (Supabase provider)
+│   ├── page.tsx           # Home/dashboard
+│   ├── globals.css        # Tailwind imports
+│   ├── agent/             # AI chat interface
+│   │   └── page.tsx
+│   ├── auth/              # Login/signup
+│   │   └── page.tsx
+│   ├── email/             # Email management
+│   │   └── page.tsx
+│   ├── email-inbox/       # IMAP inbox viewer
+│   │   └── page.tsx
+│   ├── pdf/               # PDF generator
+│   │   └── page.tsx
+│   ├── scraper/           # Web scraping interface
+│   │   └── page.tsx
+│   ├── tasks/             # Cron jobs dashboard
+│   │   └── page.tsx
+│   ├── notifications/     # Notification center
+│   │   └── page.tsx
+│   └── settings/          # User settings
+│       └── page.tsx
+│
+├── components/
+│   ├── layout/            # Navigation, Sidebar, Header
+│   │   ├── Navigation.tsx
+│   │   └── Sidebar.tsx
+│   ├── ui/                # Shadcn/ui components
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── input.tsx
+│   │   ├── dialog.tsx
+│   │   └── ...
+│   ├── agent/             # Agent-specific components
+│   ├── email/             # Email components
+│   ├── pdf/               # PDF components
+│   ├── scraper/           # Scraper components
+│   ├── tasks/             # Task components
+│   ├── notifications/     # Notification components
+│   └── NotificationProvider.tsx  # Real-time provider
+│
+├── lib/
+│   ├── api.ts             # Axios client z interceptors
+│   ├── auth.ts            # Supabase auth helpers
+│   ├── supabase.ts        # Supabase client
+│   └── utils.ts           # cn() helper, formatters
+│
+├── context/
+│   └── pdfRefreshContext.tsx  # PDF list refresh trigger
+│
+├── types/
+│   └── index.ts           # TypeScript interfaces
+│
+├── public/                # Static assets
+└── package.json
+```
+
+**Key Design Decisions**:
+
+1. **File-based Routing**: 
+   - `app/agent/page.tsx` → `/agent`
+   - No manual route configuration
+   - Nested layouts automatic
+
+2. **Component Organization**:
+   - `/components/layout` - shared layout components
+   - `/components/ui` - reusable primitives (Shadcn)
+   - `/components/{domain}` - feature-specific components
+
+3. **Shadcn/ui** (not npm package):
+   - Copy-paste component library
+   - Full customization
+   - Tailwind CSS + Radix UI primitives
+
+4. **API Layer**:
+   - Centralized axios client w `lib/api.ts`
+   - Interceptors: auth token injection, error handling
+   - Base URL: `NEXT_PUBLIC_API_URL`
+
+5. **Type Safety**:
+   - Shared types w `types/index.ts`
+   - TypeScript strict mode
+   - Interface dla API responses
+
+6. **Separation of Concerns**:
+   - Pages: routing + layout
+   - Components: UI logic
+   - Lib: utilities + external services
+   - Context: global state
+
+**Server vs Client Components**:
+- Pages default Server Components
+- Interactive components: `'use client'` directive
+- Form components, event handlers = Client
+- Static content, data fetching = Server
 
 ---
 
 ### 17. **Jak implementujesz real-time features w aplikacji?**
 
 **Odpowiedź:**
-- Supabase Realtime: PostgreSQL Change Data Capture
-- Subscriptions do specific tables
-- WebSocket connection management
-- Automatic reconnection handling
-- React hooks dla real-time data (useEffect + cleanup)
-- Optimistic updates w UI
-- Conflict resolution strategy
-- Notifications provider: NotificationProvider.tsx
-- Real-time inbox updates
-- Presence tracking możliwość (who's online)
-- Performance: selective subscriptions, filtering
+**Supabase Realtime** (PostgreSQL Change Data Capture)
+
+**NotificationProvider Implementation**:
+```typescript
+'use client';
+
+import { useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
+
+export function NotificationProvider({ children, userId }) {
+  const router = useRouter();
+  
+  useEffect(() => {
+    if (!userId) return;
+    
+    // Subscribe to notifications table
+    const channel = supabase
+      .channel('notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          console.log('New notification:', payload.new);
+          // Show toast notification
+          toast({
+            title: payload.new.title,
+            description: payload.new.message,
+          });
+          // Trigger re-fetch
+          router.refresh();
+        }
+      )
+      .subscribe();
+    
+    // Cleanup
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, router]);
+  
+  return <>{children}</>;
+}
+```
+
+**Subscription Events**:
+- `INSERT` - new row created
+- `UPDATE` - row modified
+- `DELETE` - row removed
+- `*` - all events
+
+**Filter Syntax**:
+- `filter: "user_id=eq.${userId}"` - only user's data
+- RLS applies to subscriptions too
+
+**Real-time Use Cases**:
+1. **Notifications**: instant alerts gdy backend tworzy notification
+2. **Email Inbox**: live updates gdy nowy email zeskanowany
+3. **Cron Job Status**: monitoring execution w real-time
+4. **Scraper Progress**: status updates podczas scrapingu
+
+**Connection Management**:
+- WebSocket connection automatyczny przez Supabase client
+- Automatic reconnection on disconnect
+- Heartbeat ping/pong
+- Connection pooling
+
+**Performance Optimization**:
+- **Selective subscriptions**: tylko niezbędne tabele
+- **User-specific filters**: redukuje messages
+- **Cleanup on unmount**: `removeChannel()` zapobiega memory leaks
+- **Debouncing**: multiple rapid updates → single UI update
+
+**Optimistic Updates Pattern**:
+```typescript
+// Update UI immediately
+setData(prev => [...prev, newItem]);
+
+// Then sync with server
+try {
+  await apiClient.post('/api/resource', newItem);
+  // Real-time subscription confirms insert
+} catch (error) {
+  // Rollback UI on error
+  setData(prev => prev.filter(item => item.id !== newItem.id));
+}
+```
+
+**Alternative: Polling** (fallback):
+- Supabase Realtime wymaga WebSocket support
+- Mobile apps, restrictive networks → polling co 5-10s
+- Less efficient ale universal compatibility
+
+**Presence Tracking** (potential feature):
+- "Who's online" functionality
+- Collaborative editing
+- Supabase Presence API
 
 ---
 
 ### 18. **Jak zarządzasz state w React aplikacji?**
 
 **Odpowiedź:**
-- React Context dla global state (auth, notifications)
-- Local state z useState dla component-specific
-- Custom hooks dla reusable logic
-- Server state z React Query/SWR potential
-- Form state: controlled components, validation
-- PDF refresh context: pdfRefreshContext.tsx
-- Prop drilling minimization
-- State colocation principle
-- Immutable updates pattern
-- Performance optimization: useMemo, useCallback
-- Nie używam Redux (overkill dla tego projektu)
+**Hybrid Approach** (bez Redux/Zustand):
+
+**1. Local State** (useState):
+```typescript
+// Component-specific state
+const [isLoading, setIsLoading] = useState(false);
+const [emails, setEmails] = useState<Email[]>([]);
+const [error, setError] = useState<string | null>(null);
+```
+- Form inputs
+- UI state (modals, dropdowns)
+- Component data
+
+**2. React Context** (global state):
+
+**NotificationProvider** (components/NotificationProvider.tsx):
+```typescript
+const NotificationContext = createContext({
+  notifications: [],
+  addNotification: (n) => {},
+  markAsRead: (id) => {},
+});
+
+export function NotificationProvider({ children }) {
+  const [notifications, setNotifications] = useState([]);
+  
+  // Supabase Realtime subscription
+  useEffect(() => {
+    const channel = supabase.channel('notifications')
+      .on('postgres_changes', { event: 'INSERT', ... }, handler)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, []);
+  
+  return (
+    <NotificationContext.Provider value={{...}}>
+      {children}
+    </NotificationContext.Provider>
+  );
+}
+```
+
+**PDFRefreshContext** (context/pdfRefreshContext.tsx):
+```typescript
+const PDFRefreshContext = createContext({
+  refreshTrigger: 0,
+  triggerRefresh: () => {},
+});
+
+export function PDFRefreshProvider({ children }) {
+  const [trigger, setTrigger] = useState(0);
+  
+  const triggerRefresh = () => setTrigger(prev => prev + 1);
+  
+  return (
+    <PDFRefreshContext.Provider value={{ refreshTrigger: trigger, triggerRefresh }}>
+      {children}
+    </PDFRefreshContext.Provider>
+  );
+}
+
+// Usage w PDF list component
+const { refreshTrigger } = usePDFRefresh();
+useEffect(() => {
+  fetchPDFs();
+}, [refreshTrigger]);
+```
+
+**3. Server State** (Supabase queries):
+```typescript
+// Direct Supabase queries w components
+const { data: profile } = await supabase
+  .from('user_profiles')
+  .select('*')
+  .eq('user_id', userId)
+  .single();
+```
+- Brak React Query/SWR (potential improvement)
+- Manual refetching z useEffect
+- Real-time subscriptions auto-update
+
+**4. URL State** (Next.js router):
+```typescript
+const searchParams = useSearchParams();
+const page = searchParams.get('page') || '1';
+```
+- Pagination state
+- Filters
+- Selected IDs
+
+**State Colocation**:
+- Keep state close to where it's used
+- Only lift up when multiple components need it
+- Avoid prop drilling z Context
+
+**Immutable Updates**:
+```typescript
+// Spread operator dla arrays
+setItems(prev => [...prev, newItem]);
+
+// Object updates
+setUser(prev => ({ ...prev, name: newName }));
+```
+
+**Performance Optimization**:
+```typescript
+// Memoize expensive calculations
+const filteredItems = useMemo(
+  () => items.filter(item => item.status === filter),
+  [items, filter]
+);
+
+// Memoize callbacks
+const handleClick = useCallback(
+  (id) => deleteItem(id),
+  [deleteItem]
+);
+```
+
+**Why No Redux?**
+- App nie wymaga complex state machine
+- Context + local state wystarczające
+- Mniejszy bundle size
+- Prostsze onboarding
+
+**Potential Improvements**:
+- Add React Query dla server state caching
+- Add Zustand dla complex client state
+- Add form library (React Hook Form)
 
 ---
 
 ### 19. **Opisz proces deployment. Jak wdrażasz zmiany na production?**
 
 **Odpowiedź:**
-- Git workflow: feature branches → PR → merge to master
-- CI/CD z GitHub Actions potential
-- Backend deployment: Node.js hosting (Heroku, Railway, VPS)
-- Frontend deployment: Vercel (Next.js native)
-- Environment variables management
-- Database migrations z Supabase CLI
-- Staging environment dla testów
-- Blue-green deployment strategy
-- Rollback plan
-- Health checks, smoke tests post-deployment
-- Monitoring logs, error rates after deploy
-- Zero-downtime deployment goal
+**Obecny Stan** (Development/Manual Deployment):
+
+**Git Workflow**:
+```bash
+git add .
+git commit -m "Feature: description"
+git push origin master
+```
+- Single branch deployment (master)
+- No feature branches yet (tech debt)
+- Manual commits
+
+**Backend Deployment Options**:
+1. **Railway** (recommended):
+   - Connect GitHub repo
+   - Auto-deploy on push to master
+   - Environment variables w dashboard
+   - `npm run build` → `npm start`
+   - Health checks: GET /health endpoint
+
+2. **Heroku**:
+   - `git push heroku master`
+   - Procfile: `web: npm start`
+   - Add-ons: Heroku Postgres (if not using Supabase)
+
+3. **VPS** (DigitalOcean, AWS EC2):
+   - SSH deployment
+   - PM2 process manager
+   - Nginx reverse proxy
+   - Let's Encrypt SSL
+
+**Frontend Deployment**:
+- **Vercel** (native Next.js support):
+  - Connect GitHub repo
+  - Auto-deploy on push
+  - Preview deployments dla PRs
+  - Edge network (CDN)
+  - Environment variables: `NEXT_PUBLIC_API_URL`
+
+**Database (Supabase)**:
+- Hosted PostgreSQL (no deployment needed)
+- Schema changes:
+  ```bash
+  supabase db push  # Push migrations
+  supabase db pull  # Pull remote schema
+  ```
+- SQL Editor w Supabase dashboard
+- Migration files w projekcie (*.sql)
+
+**Environment Variables**:
+
+**Backend** (.env):
+```
+PORT=3001
+NODE_ENV=production
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=eyJxxx...
+SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
+AI_API_KEY=AIzaSyxxx...
+AI_API_URL=https://generativelanguage.googleapis.com/v1beta/...
+AI_MODEL=gemini-2.5-flash
+CORS_ORIGINS=https://app.yourdomain.com,https://yourdomain.com
+ENCRYPTION_KEY=32-byte-hex-key
+```
+
+**Frontend** (.env.local):
+```
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
+```
+
+**Planned CI/CD** (GitHub Actions):
+```yaml
+name: CI/CD
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci
+      - run: npm test  # gdy testy będą
+      - run: npm run lint
+  
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Deploy to Railway
+        run: railway up
+```
+
+**Health Checks**:
+```typescript
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+});
+```
+
+**Rollback Strategy**:
+- Railway: revert to previous deployment
+- Vercel: instant rollback w dashboard
+- Git: `git revert` + push
+
+**Zero-Downtime Deployment**:
+- Railway: rolling updates
+- Graceful shutdown w code (SIGTERM handler)
+- 10s grace period dla in-flight requests
+
+**Monitoring Post-Deploy**:
+- Railway logs
+- Supabase dashboard (query performance)
+- Manual smoke tests
+- Potential: Sentry dla error tracking
 
 ---
 
 ### 20. **Jakie usprawnienia/features chciałbyś dodać do projektu w przyszłości?**
 
 **Odpowiedź:**
-- WebSocket real-time dla agent chat (zamiast polling)
-- Webhook support dla external integrations
-- Multi-language support (i18n)
-- Advanced analytics dashboard
-- AI model fine-tuning na custom data
-- Mobile app (React Native)
-- Collaboration features (shared workspaces)
-- Advanced scheduling (recurring tasks patterns)
-- Integration z więcej AI providers (Anthropic, Cohere)
-- Performance monitoring dashboard
-- Automated testing suite expansion
-- Docker containerization całego stacku
-- Kubernetes deployment dla skalowalności
+**Tech Debt & Improvements**:
+
+**1. Testing Infrastructure** (⭐ High Priority)
+- Jest + ts-jest setup
+- Unit tests dla services (80%+ coverage)
+- Integration tests z Supabase local
+- E2E tests z Playwright
+- CI/CD integration
+
+**2. Caching Layer** (⭐ High Priority)
+- Redis dla:
+  - Rate limiting persistence (obecnie in-memory)
+  - API response caching
+  - Session storage
+  - Cron job registry (survive restarts)
+- Cache invalidation strategy
+- TTL configuration per resource
+
+**3. Background Job Queue** (⭐ High Priority)
+- RabbitMQ lub AWS SQS
+- Async task processing:
+  - Email sending (don't block HTTP response)
+  - PDF generation
+  - Web scraping
+  - Bulk operations
+- Retry logic z exponential backoff
+- Dead letter queue
+- Job monitoring dashboard
+
+**4. EmailService Refactoring** (⚠️ Critical)
+- **Problem**: EmailService (65 lines) completely unused
+- **Solution**: Refactor AgentOrchestrator (143-line email logic) to use EmailService
+- Centralize nodemailer configuration
+- Reusable send methods
+- Better error handling
+
+**5. Enhanced AI Capabilities**:
+- **Multi-model support**: 
+  - Google Gemini (current)
+  - OpenAI GPT-4
+  - Anthropic Claude
+  - Model selection per request
+- **Context memory**: 
+  - Conversation history beyond single session
+  - Long-term user preferences learning
+- **Function calling**: native Gemini function calling (zamiast custom tool parsing)
+- **Streaming responses**: Server-Sent Events dla real-time AI output
+
+**6. Advanced Email Features**:
+- **Email threads**: group conversations
+- **Smart replies**: AI-suggested responses
+- **Auto-categorization**: tags, folders, priority
+- **Search**: full-text search w inbox
+- **Filters & rules**: auto-actions based on conditions
+- **OAuth2 flow**: proper Google/Microsoft auth (nie app passwords)
+
+**7. Collaboration Features**:
+- **Workspaces**: team accounts
+- **Shared templates**: email, PDF templates shared w team
+- **Role-based access**: admin, member, viewer
+- **Activity feed**: team activity log
+- **Comments**: na scraper results, PDFs
+
+**8. Analytics & Monitoring** (⭐ High Priority):
+- **Dashboard metrics**:
+  - API usage stats
+  - Token consumption tracking
+  - Cost per user
+  - Feature usage heatmap
+- **Performance monitoring**:
+  - Response time trends
+  - Error rate alerting
+  - Database query performance
+- **Business metrics**:
+  - User retention
+  - Feature adoption
+  - Conversion funnel
+
+**9. Mobile App**:
+- React Native
+- Push notifications
+- Offline support
+- Camera integration (document scanning)
+
+**10. Internationalization**:
+- i18next setup
+- Language files (pl, en, de, es)
+- Currency, date, number formatting
+- RTL support potential
+
+**11. Security Enhancements**:
+- **2FA**: Time-based OTP
+- **API key management**: per-user API keys
+- **Audit logs**: who did what when
+- **IP whitelisting**: restrict access by IP
+- **Webhook signatures**: verify webhook authenticity
+
+**12. Developer Experience**:
+- **API documentation**: Swagger/OpenAPI spec
+- **SDK generation**: TypeScript SDK dla external developers
+- **Webhooks**: notify external systems on events
+- **GraphQL API**: alternative to REST
+
+**13. Infrastructure**:
+- **Docker**: containerize backend + frontend
+- **Kubernetes**: orchestration dla scalability
+- **Terraform**: Infrastructure as Code
+- **Multi-region**: geo-distributed deployment
+
+**14. Advanced Scraping**:
+- **Headless browser pool**: Puppeteer cluster
+- **CAPTCHA solving**: integration z 2captcha
+- **Proxy rotation**: residential proxies
+- **Rate limiting compliance**: respect robots.txt, crawl-delay
+- **Data extraction templates**: reusable selectors
+
+**15. PDF Enhancements**:
+- **Template system**: WYSIWYG editor
+- **Digital signatures**: sign PDFs
+- **Form filling**: populate PDF forms
+- **OCR**: extract text from scanned PDFs
+- **Batch generation**: multiple PDFs at once
+
+**Prioritization**:
+1. 🔴 Critical: EmailService refactoring, Testing
+2. 🟠 High: Caching, Background jobs, Analytics
+3. 🟡 Medium: AI enhancements, Collaboration
+4. 🟢 Low: Mobile app, GraphQL, Multi-region
 
 ---
 
@@ -614,17 +1954,39 @@
 ### 2. **Co to jest TypeScript i jakie są jego główne zalety?**
 
 **Odpowiedź:**
-- Superset JavaScript z static typing
-- Zalety:
-  - Catch errors at compile time zamiast runtime
-  - Better IDE support: autocomplete, refactoring
-  - Self-documenting code
-  - Easier refactoring w dużych projektach
-  - Interface contracts między modułami
-- Type inference, generics, union types, type guards
-- Strict mode dla maximum safety
-- Gradual adoption możliwa (any type)
-- Compilation do JavaScript
+- **Superset JavaScript** z static typing, compilation do JS
+- **Zalety w projekcie**:
+  - **Type safety**: catch errors at compile time
+    ```typescript
+    // Backend
+    interface AIRequestConfig {
+      prompt: string;
+      userId?: string;
+      temperature?: number;
+      maxTokens?: number;
+      includeContext?: boolean;
+    }
+    ```
+  - **Better IDE support**: VSCode autocomplete, IntelliSense
+  - **Refactoring**: rename symbols safely across files
+  - **Self-documenting**: interfaces zamiast comments
+    ```typescript
+    async sendRequest(config: AIRequestConfig): Promise<AIResponseData>
+    ```
+  - **Interface contracts**: frontend-backend agreement
+- **TypeScript 5.9** w projekcie (latest)
+- **Strict mode** enabled w tsconfig.json
+- **Features used**:
+  - Generics: `BaseService<T>`
+  - Union types: `status: 'pending' | 'sent' | 'failed'`
+  - Type guards: `if (error instanceof AuthenticationError)`
+  - Utility types: `Partial<User>`, `Omit<Email, 'password'>`
+  - Async/await z Promise types
+- **Gradual adoption**: `any` type dla rapid prototyping, refactor later
+- **Type inference**: TypeScript often nie wymaga explicit types
+  ```typescript
+  const result = await apiClient.get('/api/user'); // type inferred
+  ```
 
 ---
 
@@ -785,73 +2147,416 @@ const response: ApiResponse<User> = await fetchUser();
 ### 10. **Jak implementujesz routing w Next.js App Router?**
 
 **Odpowiedź:**
-- File-based routing w app/ directory
-- Folders define routes: app/dashboard/page.tsx → /dashboard
-- Dynamic routes: app/users/[id]/page.tsx → /users/123
-- Route groups: (auth) nie wpływa na URL
-- Layouts: shared UI, nested layouts
-- Loading states: loading.tsx
-- Error handling: error.tsx
-- Metadata API dla SEO
-- Navigation: Link component, useRouter hook, redirect
-- Server Components by default, 'use client' dla interactivity
+**Next.js 16 App Router** (file-based routing)
+
+**Route Definition**:
+```
+app/
+├── page.tsx              # / (home)
+├── layout.tsx           # root layout (wraps all pages)
+├── agent/
+│   └── page.tsx         # /agent
+├── email/
+│   └── page.tsx         # /email
+├── email-inbox/
+│   └── page.tsx         # /email-inbox
+└── settings/
+    └── page.tsx         # /settings
+```
+
+**Dynamic Routes** (potential):
+```
+app/
+└── pdf/
+    ├── page.tsx         # /pdf (list)
+    └── [id]/
+        └── page.tsx     # /pdf/123 (detail)
+
+// Access param:
+export default function PDFDetail({ params }: { params: { id: string } }) {
+  const pdfId = params.id;
+}
+```
+
+**Layouts** (nested):
+```typescript
+// app/layout.tsx (root)
+export default function RootLayout({ children }) {
+  return (
+    <html>
+      <body>
+        <Providers>  {/* Supabase, Notifications */}
+          {children}
+        </Providers>
+      </body>
+    </html>
+  );
+}
+
+// app/(dashboard)/layout.tsx (shared dla dashboard pages)
+export default function DashboardLayout({ children }) {
+  return (
+    <div className="flex">
+      <Sidebar />
+      <main>{children}</main>
+    </div>
+  );
+}
+```
+
+**Route Groups**: `(dashboard)` - folder nie wpływa na URL
+
+**Special Files**:
+- `loading.tsx` - loading UI podczas fetch
+- `error.tsx` - error boundary
+- `not-found.tsx` - 404 page
+
+**Navigation**:
+```typescript
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+// Declarative
+<Link href="/agent">Go to Agent</Link>
+
+// Programmatic
+const router = useRouter();
+router.push('/email');
+router.back();
+router.refresh(); // re-fetch server components
+```
+
+**Server vs Client Components**:
+- `page.tsx` default = Server Component
+- Add `'use client'` dla interactivity
+```typescript
+'use client';
+
+import { useState } from 'react';
+
+export default function AgentPage() {
+  const [messages, setMessages] = useState([]);
+  // ...
+}
+```
+
+**Metadata API** (SEO):
+```typescript
+export const metadata = {
+  title: 'AI Agent - Office Assistant',
+  description: 'Chat with AI to automate office tasks',
+};
+```
+
+**Middleware** (potential):
+```typescript
+// middleware.ts
+export function middleware(request: NextRequest) {
+  // Auth check, redirects, etc.
+}
+```
+
+**Advantages**:
+- ✅ No manual route config
+- ✅ Automatic code splitting
+- ✅ Nested layouts easy
+- ✅ Server Components by default (performance)
 
 ---
 
 ### 11. **Wyjaśnij różnicę między Server Components a Client Components w Next.js.**
 
 **Odpowiedź:**
-- **Server Components** (default):
-  - Render on server, nie wysyłane do klienta
-  - Direct database access, no bundle size impact
-  - Nie mogą używać hooks, event handlers
-  - Better performance, SEO
-- **Client Components** ('use client'):
-  - Interactive, useState, useEffect, event handlers
-  - Render on client, part of JS bundle
-  - Browser APIs access
-- Strategy: server components gdy możliwe, client dla interactivity
-- Composition: server components w client components works
+**Server Components** (default w Next.js 16 App Router):
+```typescript
+// app/dashboard/page.tsx
+import { supabase } from '@/lib/supabase';
+
+export default async function DashboardPage() {
+  // Direct database query on server
+  const { data: stats } = await supabase
+    .from('emails_sent')
+    .select('count')
+    .eq('status', 'sent');
+  
+  return <div>Emails sent: {stats?.count}</div>;
+}
+```
+**Characteristics**:
+- ✅ Render on server only
+- ✅ Zero JavaScript sent to client (smaller bundle)
+- ✅ Direct database/API access (no CORS)
+- ✅ Secure: API keys, secrets safe
+- ✅ SEO friendly (HTML ready)
+- ❌ Cannot use hooks (useState, useEffect)
+- ❌ Cannot use browser APIs
+- ❌ No event handlers (onClick, onChange)
+
+**Client Components** ('use client' directive):
+```typescript
+'use client';
+
+import { useState } from 'react';
+
+export default function AgentChat() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  
+  const handleSend = async () => {
+    // API call to backend
+    const response = await fetch('/api/agent/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message: input }),
+    });
+  };
+  
+  return (
+    <div>
+      <input value={input} onChange={(e) => setInput(e.target.value)} />
+      <button onClick={handleSend}>Send</button>
+    </div>
+  );
+}
+```
+**Characteristics**:
+- ✅ Interactive (useState, useEffect)
+- ✅ Event handlers (onClick, onSubmit)
+- ✅ Browser APIs (localStorage, window)
+- ✅ Third-party libraries using hooks
+- ❌ Larger bundle size
+- ❌ No direct server access
+
+**Composition Patterns**:
+
+**Pattern 1**: Server component wraps client component
+```typescript
+// app/page.tsx (Server)
+import ClientWidget from '@/components/ClientWidget';
+
+export default async function Page() {
+  const data = await fetchServerData();
+  
+  return (
+    <div>
+      <h1>Server rendered</h1>
+      <ClientWidget initialData={data} />  {/* Pass as props */}
+    </div>
+  );
+}
+```
+
+**Pattern 2**: Client component imports server component as children
+```typescript
+// ClientLayout.tsx
+'use client';
+
+export default function ClientLayout({ children }) {
+  const [collapsed, setCollapsed] = useState(false);
+  
+  return (
+    <div>
+      <button onClick={() => setCollapsed(!collapsed)}>Toggle</button>
+      {!collapsed && children}  {/* children can be Server Components */}
+    </div>
+  );
+}
+```
+
+**W projekcie The-Office-Agent-AI**:
+- **Server**: page.tsx files (data fetching)
+- **Client**: 
+  - NotificationProvider (WebSocket subscriptions)
+  - Forms (input handling)
+  - Agent chat (interactive messaging)
+  - Modals, dropdowns (UI state)
+
+**Best Practice**:
+1. Start z Server Components
+2. Add 'use client' only when needed:
+   - useState, useEffect, useContext
+   - Event handlers
+   - Browser-only APIs
+3. Keep client components small and deep in tree
+4. Pass server data as props
+
+**Performance Impact**:
+- Server Components: ~0 KB JavaScript
+- Client Component: +bundle size (React, dependencies)
+- Next.js automatically optimizes (code splitting)
 
 ---
 
 ### 12. **Jak obsługujesz API calls w React? Opisz best practices.**
 
 **Odpowiedź:**
-```typescript
-const [data, setData] = useState<User[]>([]);
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);
+**Centralized API Client** (`lib/api.ts`):
 
-useEffect(() => {
-  const controller = new AbortController();
-  
-  async function fetchData() {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/users', {
-        signal: controller.signal
-      });
-      if (!res.ok) throw new Error('Failed');
-      const json = await res.json();
-      setData(json);
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
+```typescript
+import axios from 'axios';
+import { getAccessToken } from './auth';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 30000,
+});
+
+// Request interceptor - inject auth token
+apiClient.interceptors.request.use(
+  async (config) => {
+    const token = await getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log('📤 API Request:', config.method, config.url);
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor - handle errors
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response:', response.status, response.config.url);
+    return response;
+  },
+  (error) => {
+    console.error('❌ API Error:', error.response?.status, error.config?.url);
+    
+    // Auto-redirect on 401
+    if (error.response?.status === 401) {
+      window.location.href = '/auth';
+    }
+    
+    return Promise.reject(error);
   }
-  
-  fetchData();
-  return () => controller.abort(); // cleanup
-}, []);
+);
 ```
-- Loading, error, data states
-- AbortController dla cleanup
-- Libraries: React Query (tanstack/query), SWR
-- Centralized API client (lib/api.ts)
+
+**Usage Pattern** (w komponencie):
+```typescript
+'use client';
+
+import { useState, useEffect } from 'react';
+import apiClient from '@/lib/api';
+
+interface Email {
+  id: string;
+  subject: string;
+  recipient: string;
+  status: string;
+}
+
+export default function EmailList() {
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const controller = new AbortController();
+    
+    async function fetchEmails() {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await apiClient.get('/api/email/history', {
+          signal: controller.signal,
+        });
+        
+        setEmails(response.data.data);
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          setError(err.response?.data?.message || 'Failed to fetch emails');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchEmails();
+    
+    // Cleanup: cancel pending request
+    return () => controller.abort();
+  }, []);
+  
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <ul>
+      {emails.map(email => (
+        <li key={email.id}>{email.subject}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+**POST Request** (send email):
+```typescript
+const handleSendEmail = async (formData: EmailForm) => {
+  try {
+    setLoading(true);
+    
+    const response = await apiClient.post('/api/email/send', {
+      to: formData.recipients,
+      subject: formData.subject,
+      body: formData.body,
+    });
+    
+    if (response.data.success) {
+      toast.success('Email sent successfully!');
+      router.push('/email');
+    }
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || 'Failed to send email');
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+**Best Practices Implemented**:
+
+1. ✅ **Centralized client**: jedna konfiguracja dla wszystkich calls
+2. ✅ **Interceptors**: automatic token injection, error handling
+3. ✅ **AbortController**: cancel pending requests on unmount
+4. ✅ **Loading state**: user feedback
+5. ✅ **Error state**: display errors
+6. ✅ **TypeScript**: typed requests/responses
+7. ✅ **Timeout**: 30s limit zapobiega hanging requests
+8. ✅ **Logging**: console dla debugging (remove w production)
+
+**Potential Improvements**:
+- ❌ Add **React Query** (TanStack Query):
+  ```typescript
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['emails'],
+    queryFn: () => apiClient.get('/api/email/history'),
+  });
+  ```
+  - Automatic caching
+  - Background refetching
+  - Deduplication
+  - Optimistic updates
+
+- ❌ Add **SWR** (alternative):
+  ```typescript
+  const { data, error } = useSWR('/api/email/history', fetcher);
+  ```
+
+**Auth Token Helper** (`lib/auth.ts`):
+```typescript
+import { supabase } from './supabase';
+
+export async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+```
 
 ---
 

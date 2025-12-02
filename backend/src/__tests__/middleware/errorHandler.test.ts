@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { errorHandler } from '../../middleware/errorHandler';
 import {
-  AppError,
   ValidationError,
   AuthenticationError,
   NotFoundError,

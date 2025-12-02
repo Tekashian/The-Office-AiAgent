@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { getAccessToken, getCurrentUser } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
 

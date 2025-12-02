@@ -194,8 +194,8 @@ export default function EmailInboxPage() {
       }));
       
       await loadData();
-    } catch (error) {
-      const errorMsg = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Send failed';
+    } catch (err) {
+      const errorMsg = (err as { response?: { data?: { error?: string } } }).response?.data?.error || 'Send failed';
       showToast(errorMsg, 'error');
     }
   };
@@ -215,7 +215,7 @@ export default function EmailInboxPage() {
       
       showToast('Draft rejected', 'info');
       await loadData();
-    } catch (error) {
+    } catch {
       showToast('Failed to reject draft', 'error');
     }
   };

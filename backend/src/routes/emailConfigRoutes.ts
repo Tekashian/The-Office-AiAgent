@@ -139,8 +139,8 @@ router.post('/test', authenticateUser, async (req: AuthenticatedRequest, res: Re
     const decryptedPassword = decrypt(data.smtp_password);
 
     // Test connection using nodemailer
-    const nodemailer = require('nodemailer');
-    const transporter = nodemailer.createTransport({
+    const nodemailer = await import('nodemailer');
+    const transporter = nodemailer.default.createTransport({
       host: data.smtp_host,
       port: data.smtp_port,
       secure: data.smtp_port === 465,

@@ -1,6 +1,6 @@
-// @ts-ignore - No TypeScript types available
+// @ts-expect-error - No TypeScript types available for imap package
 import Imap from 'imap';
-// @ts-ignore - No TypeScript types available
+// @ts-expect-error - No TypeScript types available for mailparser package
 import { simpleParser } from 'mailparser';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';
@@ -473,8 +473,8 @@ Respond ONLY with valid JSON.`;
       console.log('🔓 IMAP config decrypted, using for SMTP');
 
       // Use Gmail SMTP (same credentials as IMAP)
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
         host: 'smtp.gmail.com',
         port: 587,
         secure: false, // Use STARTTLS

@@ -432,8 +432,8 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
       const htmlBody = emailBody.replace(/\n/g, '<br>');
       
       // Use Gmail SMTP with IMAP credentials
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
         host: 'smtp.gmail.com',
         port: 587,
         secure: false,
@@ -480,8 +480,8 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
     }
 
     try {
-      const fs = require('fs');
-      const path = require('path');
+      const fs = await import('fs');
+      const path = await import('path');
       
       // Ensure uploads directory exists
       const uploadsDir = path.join(process.cwd(), 'uploads', 'pdfs');

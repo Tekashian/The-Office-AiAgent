@@ -160,7 +160,7 @@ describe('AIService', () => {
     });
 
     it('should handle 400 validation error', async () => {
-      const error: any = {
+      const error: Record<string, unknown> = {
         response: {
           status: 400,
           data: {
@@ -173,7 +173,7 @@ describe('AIService', () => {
       };
 
       mockedAxios.post.mockRejectedValue(error);
-      (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((err: any) => err.isAxiosError === true);
+      (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((err: Record<string, unknown>) => err.isAxiosError === true);
 
       await expect(
         aiService.sendRequest({
@@ -184,7 +184,7 @@ describe('AIService', () => {
     });
 
     it('should handle 401 authentication error', async () => {
-      const error: any = {
+      const error: Record<string, unknown> = {
         response: {
           status: 401,
           data: {
@@ -197,7 +197,7 @@ describe('AIService', () => {
       };
 
       mockedAxios.post.mockRejectedValue(error);
-      (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((err: any) => err.isAxiosError === true);
+      (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((err: Record<string, unknown>) => err.isAxiosError === true);
 
       await expect(
         aiService.sendRequest({
@@ -213,7 +213,7 @@ describe('AIService', () => {
       ).rejects.toThrow('Authentication failed');
     });
     it('should handle 429 rate limit error', async () => {
-      const error: any = {
+      const error: Record<string, unknown> = {
         response: {
           status: 429,
           data: {
@@ -226,7 +226,7 @@ describe('AIService', () => {
       };
 
       mockedAxios.post.mockRejectedValue(error);
-      (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((err: any) => err.isAxiosError === true);
+      (mockedAxios.isAxiosError as unknown as jest.Mock).mockImplementation((err: Record<string, unknown>) => err.isAxiosError === true);
 
       await expect(
         aiService.sendRequest({

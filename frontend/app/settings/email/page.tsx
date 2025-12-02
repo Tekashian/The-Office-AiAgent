@@ -74,8 +74,10 @@ export default function EmailSettingsPage() {
         smtp_password: '',
       });
       fetchConfigs();
-    } catch (error: any) {
-      alert(`Failed to save configuration: ${error.response?.data?.error || error.message}`);
+    } catch (error) {
+      const msg = (error as { response?: { data?: { error?: string } }; message?: string }).response?.data?.error 
+        || (error as Error).message || 'Save failed';
+      alert(`Failed to save configuration: ${msg}`);
     } finally {
       setLoading(false);
     }
@@ -85,8 +87,10 @@ export default function EmailSettingsPage() {
     try {
       await apiClient.post('/api/email-config/test', { config_name: configName });
       alert('Email configuration is working correctly!');
-    } catch (error: any) {
-      alert(`Test failed: ${error.response?.data?.details || error.message}`);
+    } catch (error) {
+      const msg = (error as { response?: { data?: { details?: string } }; message?: string }).response?.data?.details 
+        || (error as Error).message || 'Test failed';
+      alert(`Test failed: ${msg}`);
     }
   };
 
@@ -97,8 +101,10 @@ export default function EmailSettingsPage() {
       await apiClient.delete(`/api/email-config/${id}`);
       alert('Configuration deleted successfully!');
       fetchConfigs();
-    } catch (error: any) {
-      alert(`Failed to delete: ${error.response?.data?.error || error.message}`);
+    } catch (error) {
+      const msg = (error as { response?: { data?: { error?: string } }; message?: string }).response?.data?.error 
+        || (error as Error).message || 'Delete failed';
+      alert(`Failed to delete: ${msg}`);
     }
   };
 

@@ -441,7 +441,12 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
           user: imap.imap_user,
           pass: decryptedPassword,
         },
+        connectionTimeout: 30000, // 30 seconds
+        greetingTimeout: 20000,   // 20 seconds
+        socketTimeout: 40000,      // 40 seconds
       });
+
+      logger.info('SMTP transporter created, attempting to send email...');
 
       // Send email
       const info = await transporter.sendMail({
@@ -466,7 +471,11 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
 
       return `✅ Email sent successfully to ${Array.isArray(params.to) ? params.to.join(', ') : params.to}!`;
     } catch (error) {
-      logger.error('Email execution error', error);
+      logger.error('Email execution error', { 
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        errorType: error instanceof Error ? error.constructor.name : typeof error
+      });
       return `❌ Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure you\'ve configured your email in AI Email Inbox.`;
     }
   }

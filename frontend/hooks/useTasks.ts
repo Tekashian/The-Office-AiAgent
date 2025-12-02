@@ -9,7 +9,7 @@ export interface CronJob {
   name: string;
   schedule: string;
   task_type: string;
-  task_config: any;
+  task_config: Record<string, unknown>;
   enabled: boolean;
   status: string;
   last_run: string | null;
@@ -78,7 +78,7 @@ export function useTasks() {
     name: string;
     schedule: string;
     task_type: string;
-    task_config: any;
+    task_config: Record<string, unknown>;
     enabled: boolean;
   }): Promise<boolean> => {
     try {
@@ -109,7 +109,7 @@ export function useTasks() {
       name: string;
       schedule: string;
       task_type: string;
-      task_config: any;
+      task_config: Record<string, unknown>;
       enabled: boolean;
     }
   ): Promise<boolean> => {

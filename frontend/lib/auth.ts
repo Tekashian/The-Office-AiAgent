@@ -18,7 +18,7 @@ export async function signUp(email: string, password: string, fullName?: string)
     if (error) throw error;
 
     return { user: data.user, session: data.session };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Sign up error:', error);
     throw new Error(error.message || 'Failed to sign up');
   }
@@ -37,7 +37,7 @@ export async function signIn(email: string, password: string) {
     if (error) throw error;
 
     return { user: data.user, session: data.session };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Sign in error:', error);
     throw new Error(error.message || 'Failed to sign in');
   }
@@ -50,7 +50,7 @@ export async function signOut() {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Sign out error:', error);
     throw new Error(error.message || 'Failed to sign out');
   }
@@ -64,7 +64,7 @@ export async function getCurrentUser() {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error) throw error;
     return user;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get current user error:', error);
     return null;
   }
@@ -78,7 +78,7 @@ export async function getSession() {
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error) throw error;
     return session;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get session error:', error);
     return null;
   }
@@ -101,7 +101,7 @@ export async function resetPassword(email: string) {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     if (error) throw error;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Reset password error:', error);
     throw new Error(error.message || 'Failed to send reset email');
   }
@@ -116,7 +116,7 @@ export async function updatePassword(newPassword: string) {
       password: newPassword,
     });
     if (error) throw error;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Update password error:', error);
     throw new Error(error.message || 'Failed to update password');
   }
@@ -144,7 +144,7 @@ export async function getUserProfile(userId: string) {
 
     if (error) throw error;
     return data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get user profile error:', error);
     return null;
   }
@@ -164,7 +164,7 @@ export async function updateUserProfile(userId: string, updates: { full_name?: s
 
     if (error) throw error;
     return data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Update user profile error:', error);
     throw new Error(error.message || 'Failed to update profile');
   }

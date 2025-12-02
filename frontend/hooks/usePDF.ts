@@ -58,7 +58,6 @@ interface UsePDFReturn {
 
 export function usePDF(options: UsePDFOptions = {}): UsePDFReturn {
   const { requireAuth = true, refreshKey = 0 } = options;
-  const router = useRouter();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('id');
 

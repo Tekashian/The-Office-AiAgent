@@ -53,14 +53,19 @@ export function TaskModal({
 
   useEffect(() => {
     if (editingJob) {
-      setJobName(editingJob.name);
-      setJobType(editingJob.task_type);
-      setJobConfig(JSON.stringify(editingJob.task_config, null, 2));
-      setScheduleType('recurring');
-      setRecurringType('daily');
-      setScheduledTime('09:00');
-    } else {
-      resetForm();
+      // Queue state updates to avoid cascading renders warning
+      queueMicrotask(() => {
+        setJobName(editingJob.name);
+        setJobType(editingJob.task_type);
+        setJobConfig(JSON.stringify(editingJob.task_config, null, 2));
+        setScheduleType('recurring');
+        setRecurringType('daily');
+        setScheduledTime('09:00');
+      });
+    } else if (isOpen && !editingJob) {
+      queueMicrotask(() => {
+        resetForm();
+      });
     }
   }, [editingJob, isOpen]);
 

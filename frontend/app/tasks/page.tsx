@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Plus, Clock, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +10,7 @@ import { useTasks, CronJob } from '@/hooks/useTasks';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { TaskModal } from '@/components/tasks/TaskModal';
 
-export default function TasksPage() {
+function TasksPageContent() {
   const { showToast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -195,5 +195,13 @@ export default function TasksPage() {
         generatingConfig={generatingConfig}
       />
     </div>
+  );
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Ładowanie...</div>}>
+      <TasksPageContent />
+    </Suspense>
   );
 }

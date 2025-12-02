@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { usePDFRefresh } from '@/context/pdfRefreshContext';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -12,7 +12,7 @@ import { PDFList } from '@/components/pdf/PDFList';
 import { PDFTemplateModal } from '@/components/pdf/PDFTemplateModal';
 import { PDFPreviewModal } from '@/components/pdf/PDFPreviewModal';
 
-export default function PDFPage() {
+function PDFPageContent() {
   const { refreshKey } = usePDFRefresh();
   const { showToast } = useToast();
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -171,5 +171,13 @@ export default function PDFPage() {
         generating={generating}
       />
     </div>
+  );
+}
+
+export default function PDFPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Ładowanie...</div>}>
+      <PDFPageContent />
+    </Suspense>
   );
 }

@@ -25,7 +25,7 @@ interface UseAgentReturn {
   sendMessage: () => Promise<void>;
   hideExamples: () => void;
   clearError: () => void;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // Use a fixed timestamp for initial message to avoid hydration mismatch

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, createElement } from 'react';
 import { Play, Pause, Edit, Trash2, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -66,8 +66,6 @@ export const TaskCard = React.memo(function TaskCard({
     return <Badge variant="default">{job.status}</Badge>;
   };
 
-  const IconComponent = getTaskIcon(job.task_type);
-
   return (
     <div
       ref={cardRef}
@@ -79,7 +77,7 @@ export const TaskCard = React.memo(function TaskCard({
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-3 flex-1">
               <div className="p-2 bg-primary-100 dark:bg-primary-900 rounded-lg">
-                <IconComponent className="h-4 w-4" />
+                {createElement(getTaskIcon(job.task_type), { className: 'h-4 w-4' })}
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">

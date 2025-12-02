@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { Session } from '@supabase/supabase-js';
 
 /**
  * Sign up a new user
@@ -20,7 +21,7 @@ export async function signUp(email: string, password: string, fullName?: string)
     return { user: data.user, session: data.session };
   } catch (error) {
     console.error('Sign up error:', error);
-    throw new Error(error.message || 'Failed to sign up');
+    throw new Error((error as { message?: string })?.message || 'Failed to sign up');
   }
 }
 
@@ -39,7 +40,7 @@ export async function signIn(email: string, password: string) {
     return { user: data.user, session: data.session };
   } catch (error) {
     console.error('Sign in error:', error);
-    throw new Error(error.message || 'Failed to sign in');
+    throw new Error((error as { message?: string })?.message || 'Failed to sign in');
   }
 }
 
@@ -52,7 +53,7 @@ export async function signOut() {
     if (error) throw error;
   } catch (error) {
     console.error('Sign out error:', error);
-    throw new Error(error.message || 'Failed to sign out');
+    throw new Error((error as { message?: string })?.message || 'Failed to sign out');
   }
 }
 
@@ -103,7 +104,7 @@ export async function resetPassword(email: string) {
     if (error) throw error;
   } catch (error) {
     console.error('Reset password error:', error);
-    throw new Error(error.message || 'Failed to send reset email');
+    throw new Error((error as { message?: string })?.message || 'Failed to send reset email');
   }
 }
 
@@ -118,14 +119,14 @@ export async function updatePassword(newPassword: string) {
     if (error) throw error;
   } catch (error) {
     console.error('Update password error:', error);
-    throw new Error(error.message || 'Failed to update password');
+    throw new Error((error as { message?: string })?.message || 'Failed to update password');
   }
 }
 
 /**
  * Subscribe to auth state changes
  */
-export function onAuthStateChange(callback: (event: string, session: Record<string, unknown> | null) => void) {
+export function onAuthStateChange(callback: (event: string, session: Session | null) => void) {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(event, session);
   });
@@ -166,6 +167,6 @@ export async function updateUserProfile(userId: string, updates: { full_name?: s
     return data;
   } catch (error) {
     console.error('Update user profile error:', error);
-    throw new Error(error.message || 'Failed to update profile');
+    throw new Error((error as { message?: string })?.message || 'Failed to update profile');
   }
 }

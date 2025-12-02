@@ -1,16 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Plus, Globe, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { useScraper, type ScraperFormData } from '@/hooks/useScraper';
+import { useScraper, type ScraperFormData, type ScrapeJob } from '@/hooks/useScraper';
 import { ScraperForm } from '@/components/scraper/ScraperForm';
 import { ScraperJobCard } from '@/components/scraper/ScraperJobCard';
 import { ScraperHistoryModal } from '@/components/scraper/ScraperHistoryModal';
 
-export default function ScraperPage() {
+function ScraperPageContent() {
   const { showToast } = useToast();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -54,7 +54,7 @@ export default function ScraperPage() {
     showToast('Scraper usunięty', 'success');
   };
 
-  const handleViewHistory = (job: { id: string; name: string }) => {
+  const handleViewHistory = (job: ScrapeJob) => {
     setSelectedJob(job);
     fetchHistory(job.id);
     setShowHistory(true);
@@ -147,5 +147,13 @@ export default function ScraperPage() {
         history={history}
       />
     </div>
+  );
+}
+
+export default function ScraperPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Ładowanie...</div>}>
+      <ScraperPageContent />
+    </Suspense>
   );
 }

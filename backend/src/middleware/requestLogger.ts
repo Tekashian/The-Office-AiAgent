@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger';
+
+// Use crypto.randomUUID instead of uuid package to avoid ESM issues
+const generateUUID = (): string => {
+  return crypto.randomUUID();
+};
 
 /**
  * Request Logging Middleware
@@ -10,7 +14,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
   const startTime = Date.now();
   
   // Generate correlation ID for request tracing
-  const correlationId = req.headers['x-correlation-id'] as string || uuidv4();
+  const correlationId = req.headers['x-correlation-id'] as string || generateUUID();
   req.headers['x-correlation-id'] = correlationId;
   res.setHeader('X-Correlation-ID', correlationId);
 

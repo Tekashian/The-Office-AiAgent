@@ -37,7 +37,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
       duration,
       {
         correlationId,
-        userId: (req as Record<string, unknown> & { userId?: string }).userId,
+        userId: (req as unknown as { userId?: string }).userId,
         query: Object.keys(req.query).length > 0 ? req.query : undefined,
       }
     );

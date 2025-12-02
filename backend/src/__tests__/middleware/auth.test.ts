@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { authenticateUser, optionalAuth, AuthenticatedRequest } from '../../middleware/auth';
+import { supabase } from '../../config/supabase';
 
 // Mock Supabase
 jest.mock('../../config/supabase', () => ({

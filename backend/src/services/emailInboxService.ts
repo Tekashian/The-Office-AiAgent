@@ -1,6 +1,4 @@
-// @ts-expect-error - No TypeScript types available for imap package
 import Imap from 'imap';
-// @ts-expect-error - No TypeScript types available for mailparser package
 import { simpleParser } from 'mailparser';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';

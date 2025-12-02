@@ -5,7 +5,7 @@ import { Plus, Globe, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { useScraper } from '@/hooks/useScraper';
+import { useScraper, type ScraperFormData } from '@/hooks/useScraper';
 import { ScraperForm } from '@/components/scraper/ScraperForm';
 import { ScraperJobCard } from '@/components/scraper/ScraperJobCard';
 import { ScraperHistoryModal } from '@/components/scraper/ScraperHistoryModal';
@@ -31,7 +31,7 @@ export default function ScraperPage() {
     setSelectedJob,
   } = useScraper();
 
-  const handleCreateJob = async (data: Record<string, unknown>) => {
+  const handleCreateJob = async (data: ScraperFormData) => {
     const success = await createJob(data);
     if (success) {
       showToast('Scraper utworzony pomyślnie!', 'success');

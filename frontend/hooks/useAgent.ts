@@ -113,7 +113,8 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
         conversationHistory,
       });
 
-      if (response.data.success) {
+      // Backend returns: {success: true, data: {content: "..."}, timestamp}
+      if (response.data && response.data.success && response.data.data) {
         const agentContent = response.data.data.content;
 
         // Check for PDF generation confirmation
@@ -124,9 +125,9 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
           onPDFGenerated?.();
         }
 
-        // Parse timestamp safely - check both locations
+        // Parse timestamp safely
         let timestamp = new Date();
-        const timestampValue = response.data.timestamp || response.data.data.timestamp;
+        const timestampValue = response.data.timestamp;
         if (timestampValue) {
           const parsedTime = new Date(timestampValue);
           if (!isNaN(parsedTime.getTime())) {
@@ -143,7 +144,7 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
 
         setMessages((prev) => [...prev, agentMessage]);
       } else {
-        throw new Error(response.data.message || 'Failed to get response');
+        throw new Error('Invalid response format from server');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';

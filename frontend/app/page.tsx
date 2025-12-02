@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { apiClient } from '@/lib/api';
+import { getSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 
 interface DashboardStats {
@@ -55,9 +56,9 @@ export default function Home() {
 
   const checkAuthAndFetchData = async () => {
     try {
-      // Check if user has token
-      const token = localStorage.getItem('supabase_token');
-      if (!token) {
+      // Check session first
+      const session = await getSession();
+      if (!session) {
         setIsAuthenticated(false);
         setLoading(false);
         return;

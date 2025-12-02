@@ -5,7 +5,7 @@ import { usePDFRefresh } from '@/context/pdfRefreshContext';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { usePDF, type PDFTemplate } from '@/hooks/usePDF';
+import { usePDF, type PDFTemplate, type PDFFile } from '@/hooks/usePDF';
 import { PDFGenerator } from '@/components/pdf/PDFGenerator';
 import { PDFTemplates } from '@/components/pdf/PDFTemplates';
 import { PDFList } from '@/components/pdf/PDFList';
@@ -45,7 +45,7 @@ export default function PDFPage() {
     }
   };
 
-  const handleDownloadPDF = async (pdf: any) => {
+  const handleDownloadPDF = async (pdf: PDFFile) => {
     await downloadPDF(pdf);
   };
 

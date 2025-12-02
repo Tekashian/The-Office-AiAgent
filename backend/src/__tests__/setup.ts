@@ -21,6 +21,26 @@ process.env.CORS_ORIGINS = 'http://localhost:3000';
 // Global test timeout
 jest.setTimeout(10000);
 
+// Suppress console.error during tests (expected errors in error handler tests)
+const originalError = console.error;
+beforeAll(() => {
+  console.error = (...args: any[]) => {
+    if (
+      args[0]?.includes?.('Authentication error') ||
+      args[0]?.includes?.('CRITICAL ERROR') ||
+      args[0]?.includes?.('Optional auth error') ||
+      args[0]?.includes?.('Error Details')
+    ) {
+      return; // Suppress expected test errors
+    }
+    originalError(...args);
+  };
+});
+
+afterAll(() => {
+  console.error = originalError;
+});
+
 // Clean up after all tests
 afterAll(async () => {
   // Close any open connections

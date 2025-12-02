@@ -15,7 +15,7 @@ interface EmailConfig {
 }
 
 export default function EmailSettingsPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [configs, setConfigs] = useState<EmailConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -29,11 +29,6 @@ export default function EmailSettingsPage() {
     smtp_user: '',
     smtp_password: '',
   });
-
-  useEffect(() => {
-    checkUser();
-    fetchConfigs();
-  }, []);
 
   const checkUser = async () => {
     const currentUser = await getCurrentUser();
@@ -49,6 +44,16 @@ export default function EmailSettingsPage() {
       const response = await apiClient.get('/api/email-config');
       setConfigs(response.data.configs || []);
     } catch (error) {
+      console.error('Failed to fetch configs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    checkUser();
+    fetchConfigs();
+  }, [checkUser]);
       console.error('Failed to fetch configs:', error);
     } finally {
       setLoading(false);

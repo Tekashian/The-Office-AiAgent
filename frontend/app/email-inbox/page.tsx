@@ -5,17 +5,13 @@ import { useRouter } from 'next/navigation';
 import {
   Mail,
   Inbox,
-  Star,
-  Archive,
   RefreshCw,
   CheckCircle,
   XCircle,
   Edit,
   Send,
-  Clock,
   AlertCircle,
   Sparkles,
-  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -62,7 +58,6 @@ interface AIDraft {
 
 export default function EmailInboxPage() {
   const { showToast } = useToast();
-  const [user, setUser] = useState<any>(null);
   const [emails, setEmails] = useState<InboxEmail[]>([]);
   const [drafts, setDrafts] = useState<AIDraft[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<InboxEmail | null>(null);
@@ -82,7 +77,7 @@ export default function EmailInboxPage() {
 
   useEffect(() => {
     checkAuthAndLoad();
-  }, []);
+  }, [checkAuthAndLoad]);
 
   const checkAuthAndLoad = async () => {
     const currentUser = await getCurrentUser();
@@ -90,7 +85,6 @@ export default function EmailInboxPage() {
       router.push('/auth');
       return;
     }
-    setUser(currentUser);
     await loadData();
   };
 
@@ -108,13 +102,11 @@ export default function EmailInboxPage() {
       setDrafts(draftsRes.data.drafts || []);
       setStats(statsRes.data);
       console.log('✅ Email inbox loaded successfully');
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Email inbox error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
+      if (error instanceof Error) {
+        console.error('Error details:', { message: error.message });
+      }
       console.error('Load data error:', error);
     } finally {
       setLoading(false);
@@ -127,8 +119,8 @@ export default function EmailInboxPage() {
       const response = await apiClient.post('/api/email-inbox/scan');
       showToast(`Inbox scanned! Found ${response.data.emailsFound} new emails.`, 'success');
       await loadData();
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.error || 'Scan failed';
+    } catch (error) {
+      const errorMsg = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Scan failed';
       if (errorMsg.includes('No active IMAP configuration')) {
         showToast('IMAP not configured! Please configure your email settings first.', 'error');
         setShowImapModal(true);
@@ -205,8 +197,9 @@ export default function EmailInboxPage() {
       }));
       
       await loadData();
-    } catch (error: any) {
-      showToast(error.response?.data?.error || 'Send failed', 'error');
+    } catch (error) {
+      const errorMsg = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Send failed';
+      showToast(errorMsg, 'error');
     }
   };
 
@@ -247,8 +240,9 @@ export default function EmailInboxPage() {
       }));
       
       showToast('AI draft generated successfully! You can now edit it.', 'success');
-    } catch (error: any) {
-      showToast(error.response?.data?.error || 'Failed to generate draft', 'error');
+    } catch (error) {
+      const errorMsg = (error as { response?: { data?: { error?: string } } }).response?.data?.error || 'Failed to generate draft';
+      showToast(errorMsg, 'error');
     } finally {
       setGeneratingDraft(false);
     }
@@ -279,15 +273,12 @@ export default function EmailInboxPage() {
       alert('✅ IMAP configured successfully!');
       setShowImapModal(false);
       setImapForm({ imap_user: '', imap_password: '' });
-    } catch (err: any) {
+    } catch (err) {
       console.error('❌ IMAP configuration failed:', err);
-      console.error('Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-        config: err.config,
-      });
-      alert('❌ Failed: ' + (err.response?.data?.error || err.message));
+      const errorMsg = (err as { response?: { data?: { error?: string } }; message?: string }).response?.data?.error 
+        || (err as Error).message 
+        || 'Configuration failed';
+      alert('❌ Failed: ' + errorMsg);
     }
   };
 

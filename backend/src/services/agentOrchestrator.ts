@@ -51,12 +51,12 @@ class AgentOrchestrator {
     },
     {
       name: 'create_cron_job',
-      description: 'Schedule a recurring task. Use when user wants to automate/schedule something regularly (daily, weekly, etc).',
+      description: 'Create a scheduled/recurring task that runs automatically at specified times. Use when user wants to automate/schedule/zaplanuj/utwórz zadanie cykliczne/recurring task. Keywords: schedule, automate, recurring, cykliczne, cron, zadanie, automatyczne, regularne, powtarzające się, o określonej porze.',
       parameters: {
-        name: 'string - job name',
-        schedule: 'string - cron expression (e.g., "0 8 * * *" for daily at 8am)',
-        task_type: 'string - email, pdf, or scraper',
-        task_config: 'object - configuration for the task',
+        name: 'string - descriptive job name',
+        schedule: 'string - cron expression (e.g., "0 9 * * *" = daily at 9am, "0 9 * * 1" = every Monday at 9am, "0 */2 * * *" = every 2 hours)',
+        task_type: 'string - type of task: "email", "pdf", or "scraper"',
+        task_config: 'object - task configuration (same as the task tool parameters)',
       },
     },
     {
@@ -112,7 +112,39 @@ Response: {
     "name": "Daily Report",
     "schedule": "0 9 * * *",
     "task_type": "pdf",
-    "task_config": { "title": "Daily Report" }
+    "task_config": { "title": "Daily Report", "content": "Daily summary report" }
+  }
+}
+
+User: "Utwórz zadanie cykliczne co poniedziałek o 9:00"
+Response: {
+  "tool": "create_cron_job",
+  "reasoning": "User wants to create a recurring task every Monday",
+  "parameters": {
+    "name": "Zadanie poniedziałkowe",
+    "schedule": "0 9 * * 1",
+    "task_type": "email",
+    "task_config": { 
+      "to": ["user@example.com"], 
+      "subject": "Cotygodniowe przypomnienie",
+      "body": "To jest automatyczna wiadomość wysyłana co poniedziałek."
+    }
+  }
+}
+
+User: "Automatycznie wysyłaj raport każdego dnia o 8 rano"
+Response: {
+  "tool": "create_cron_job",
+  "reasoning": "User wants to automate daily report sending",
+  "parameters": {
+    "name": "Dzienny raport automatyczny",
+    "schedule": "0 8 * * *",
+    "task_type": "email",
+    "task_config": {
+      "to": ["manager@example.com"],
+      "subject": "Dzienny raport",
+      "body": "Raport dzienny wygenerowany automatycznie."
+    }
   }
 }
 
@@ -153,7 +185,9 @@ Response: {
 }
 
 IMPORTANT: Always respond with valid JSON only, no additional text.
-IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS use scrape_website tool, not conversation.`;
+IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS use scrape_website tool, not conversation.
+IMPORTANT: When user wants to schedule/automate/create recurring tasks (keywords: cykliczne, schedule, automat, regularne, co dzień, co tydzień), ALWAYS use create_cron_job tool.
+IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 * * *" = 9am daily, "0 9 * * 1" = 9am Mondays).`;
   }
 
   /**
@@ -282,10 +316,13 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
         console.log('🤖 Enhancing email with AI for professional format...');
         
         try {
-          const enhanced = await aiService.generateEmailTemplate({
+          const enhanced = await aiService.generateProfessionalEmail({
             subject: params.subject || 'Ważna informacja',
-            purpose: params.body,
+            message: params.body,
             tone: 'professional',
+            senderName: profile?.full_name,
+            senderPosition: profile?.job_title,
+            company: profile?.company,
           });
           
           emailBody = enhanced;
@@ -308,10 +345,12 @@ IMPORTANT: When user provides a URL and wants data/information from it, ALWAYS u
         signature = signature.replace(/\{\{sender_position\}\}/g, profile.job_title || '');
         signature = signature.replace(/\{\{company_name\}\}/g, profile.company || '');
         
-        // Add signature if email doesn't already have a closing
-        if (!emailBody.includes('Z poważaniem') && !emailBody.includes('Pozdrawiam')) {
-          emailBody = `${emailBody}\n\n${signature}`;
-        }
+        // Always add signature with proper spacing
+        // Remove "Z poważaniem" from AI-generated email if it exists (will be in signature)
+        emailBody = emailBody.replace(/\n*Z poważaniem[,]?\s*/gi, '');
+        emailBody = emailBody.replace(/\n*Pozdrawiam[,]?\s*/gi, '');
+        
+        emailBody = `${emailBody.trim()}\n\n${signature}`;
       }
 
       // Convert \n to proper line breaks for HTML

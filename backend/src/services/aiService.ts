@@ -290,6 +290,61 @@ Format variables as {{variableName}}.`;
 
     return response.content;
   }
+
+  /**
+   * Generate professional email body (ready to send, no placeholders)
+   */
+  async generateProfessionalEmail(params: {
+    subject: string;
+    message: string;
+    tone?: string;
+    senderName?: string;
+    senderPosition?: string;
+    company?: string;
+    recipientName?: string;
+  }): Promise<string> {
+    const { 
+      subject, 
+      message, 
+      tone = 'professional',
+      senderName,
+      senderPosition,
+      company,
+      recipientName 
+    } = params;
+
+    const contextParts: string[] = [];
+    if (recipientName) contextParts.push(`Odbiorca: ${recipientName}`);
+    if (senderName) contextParts.push(`Nadawca: ${senderName}`);
+    if (senderPosition) contextParts.push(`Stanowisko nadawcy: ${senderPosition}`);
+    if (company) contextParts.push(`Firma: ${company}`);
+
+    const prompt = `Wygeneruj profesjonalny email w języku polskim na podstawie poniższych informacji:
+
+Temat: ${subject}
+Główna treść/cel: ${message}
+Ton: ${tone}
+${contextParts.length > 0 ? `\nKontekst:\n${contextParts.join('\n')}` : ''}
+
+WAŻNE ZASADY:
+1. Użyj odpowiedniego powitania (np. "Szanowni Państwo", "Szanowna Pani/Panie" jeśli znasz imię)
+2. Napisz treść emaila w formalnym, profesjonalnym stylu
+3. Zakończ odpowiednim pozdrowieniem (np. "Z poważaniem", "Pozdrawiam")
+4. NIE używaj placeholderów typu {{nazwa}} - wpisz konkretne wartości lub pomiń
+5. Email powinien być gotowy do wysłania
+6. Formatuj w sposób czytelny z odpowiednimi akapitami
+7. Jeśli nie znasz imienia odbiorcy, użyj ogólnego powitania
+
+Wygeneruj TYLKO treść emaila (bez tematu, będzie dodany osobno):`;
+
+    const response = await this.sendRequest({
+      prompt,
+      includeContext: false,
+      temperature: 0.7,
+    });
+
+    return response.content;
+  }
 }
 
 export default new AIService();

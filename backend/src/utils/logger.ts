@@ -21,7 +21,8 @@ class Logger {
   constructor() {
     const envLevel = (process.env.LOG_LEVEL || 'INFO').toUpperCase();
     this.level = LogLevel[envLevel as keyof typeof LogLevel] || LogLevel.INFO;
-    this.isDevelopment = process.env.NODE_ENV === 'development';
+    // Check both NODE_ENV values that indicate development
+    this.isDevelopment = process.env.NODE_ENV !== 'production';
   }
 
   /**
@@ -29,9 +30,10 @@ class Logger {
    */
   private format(level: LogLevel, message: string, metadata?: LogMetadata): string {
     const timestamp = new Date().toISOString();
-    const meta = metadata ? ` | ${JSON.stringify(metadata)}` : '';
     
     if (this.isDevelopment) {
+      // Development: Human-readable format with colors
+      const meta = metadata ? ` | ${JSON.stringify(metadata)}` : '';
       return `${timestamp} [${level}] ${message}${meta}`;
     }
     

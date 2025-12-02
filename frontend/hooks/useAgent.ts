@@ -7,7 +7,7 @@ export interface AgentMessage {
   id: string;
   role: 'user' | 'model';
   content: string;
-  timestamp: Date;
+  timestamp: Date | string;
 }
 
 interface UseAgentOptions {
@@ -28,11 +28,14 @@ interface UseAgentReturn {
   messagesEndRef: React.RefObject<HTMLDivElement>;
 }
 
+// Use a fixed timestamp for initial message to avoid hydration mismatch
+const INITIAL_TIMESTAMP = '2025-01-01T00:00:00.000Z';
+
 const INITIAL_MESSAGE: AgentMessage = {
   id: 'initial',
   role: 'model',
   content: 'Cześć! Jestem Twoim AI agentem biurowym. Mogę pomóc Ci w automatyzacji zadań, wysyłaniu emaili, generowaniu PDF-ów i wiele więcej. W czym mogę Ci dziś pomóc?',
-  timestamp: new Date(),
+  timestamp: INITIAL_TIMESTAMP,
 };
 
 export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
@@ -121,11 +124,21 @@ export function useAgent(options: UseAgentOptions = {}): UseAgentReturn {
           onPDFGenerated?.();
         }
 
+        // Parse timestamp safely - check both locations
+        let timestamp = new Date();
+        const timestampValue = response.data.timestamp || response.data.data.timestamp;
+        if (timestampValue) {
+          const parsedTime = new Date(timestampValue);
+          if (!isNaN(parsedTime.getTime())) {
+            timestamp = parsedTime;
+          }
+        }
+
         const agentMessage: AgentMessage = {
           id: `agent-${Date.now()}`,
           role: 'model',
           content: agentContent,
-          timestamp: new Date(response.data.data.timestamp),
+          timestamp,
         };
 
         setMessages((prev) => [...prev, agentMessage]);

@@ -9,6 +9,18 @@ interface AgentMessageProps {
 
 export const AgentMessage = memo<AgentMessageProps>(({ message, index }) => {
   const isUser = message.role === 'user';
+  
+  // Ensure timestamp is a valid Date object
+  const timestamp = message.timestamp instanceof Date 
+    ? message.timestamp 
+    : new Date(message.timestamp);
+  
+  // Check if timestamp is valid
+  const isValidDate = !isNaN(timestamp.getTime());
+  const displayTime = isValidDate 
+    ? timestamp.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+    : '--:--';
+  const isoTime = isValidDate ? timestamp.toISOString() : new Date().toISOString();
 
   return (
     <div
@@ -49,12 +61,9 @@ export const AgentMessage = memo<AgentMessageProps>(({ message, index }) => {
                 ? 'text-primary-100'
                 : 'text-gray-500 dark:text-gray-400'
             }`}
-            dateTime={message.timestamp.toISOString()}
+            dateTime={isoTime}
           >
-            {message.timestamp.toLocaleTimeString('pl-PL', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {displayTime}
           </time>
         </div>
       </div>

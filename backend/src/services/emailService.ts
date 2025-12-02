@@ -1,5 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { EmailConfig } from '../types';
+import { logger } from '../utils/logger';
 
 export class EmailService {
   private transporter: Transporter;
@@ -30,9 +31,9 @@ export class EmailService {
         attachments: config.attachments,
       });
 
-      console.log(`📧 Email sent: ${info.messageId}`);
+      logger.info('Email sent', { messageId: info.messageId });
     } catch (error) {
-      console.error('Failed to send email:', error);
+      logger.error('Failed to send email', error);
       throw error;
     }
   }
@@ -51,10 +52,10 @@ export class EmailService {
   async verifyConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();
-      console.log('✅ Email service is ready');
+      logger.info('Email service is ready');
       return true;
     } catch (error) {
-      console.error('❌ Email service configuration error:', error);
+      logger.error('Email service configuration error', error);
       return false;
     }
   }

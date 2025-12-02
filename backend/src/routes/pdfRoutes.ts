@@ -3,6 +3,7 @@ import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { PDFService } from '../services/pdfService';
 import aiService from '../services/aiService';
+import { logger } from '../utils/logger';
 import path from 'path';
 import fs from 'fs';
 
@@ -36,10 +37,10 @@ router.get('/templates', authenticateUser, async (req: AuthenticatedRequest, res
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ Fetch PDF templates error:', error);
+      logger.error('Fetch PDF templates error', error);
       // If table doesn't exist yet, return empty array instead of 500
       if (error.message && error.message.includes('does not exist')) {
-        console.log('⚠️ pdf_templates table does not exist yet, returning empty array');
+        logger.warn('pdf_templates table does not exist yet, returning empty array');
         res.json([]);
         return;
       }
@@ -49,7 +50,7 @@ router.get('/templates', authenticateUser, async (req: AuthenticatedRequest, res
 
     res.json(data || []);
   } catch (error: any) {
-    console.error('❌ Get PDF templates error:', error);
+    logger.error('Get PDF templates error', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -80,14 +81,14 @@ router.post('/templates', authenticateUser, async (req: AuthenticatedRequest, re
       .single();
 
     if (error) {
-      console.error('❌ Create PDF template error:', error);
+      logger.error('Create PDF template error', error);
       res.status(500).json({ error: 'Failed to create template', details: error.message });
       return;
     }
 
     res.status(201).json(data);
   } catch (error: any) {
-    console.error('❌ Create PDF template error:', error);
+    logger.error('Create PDF template error', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -117,7 +118,7 @@ router.put('/templates/:id', authenticateUser, async (req: AuthenticatedRequest,
       .single();
 
     if (error) {
-      console.error('❌ Update PDF template error:', error);
+      logger.error('Update PDF template error', error);
       res.status(500).json({ error: 'Failed to update template', details: error.message });
       return;
     }
@@ -129,7 +130,7 @@ router.put('/templates/:id', authenticateUser, async (req: AuthenticatedRequest,
 
     res.json(data);
   } catch (error: any) {
-    console.error('❌ Update PDF template error:', error);
+    logger.error('Update PDF template error', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -149,7 +150,7 @@ router.delete('/templates/:id', authenticateUser, async (req: AuthenticatedReque
       .eq('user_id', req.userId);
 
     if (error) {
-      console.error('❌ Delete PDF template error:', error);
+      logger.error('Delete PDF template error', error);
       res.status(500).json({ error: 'Failed to delete template', details: error.message });
       return;
     }
@@ -189,7 +190,7 @@ router.post('/templates/:id/use', authenticateUser, async (req: AuthenticatedReq
 
     res.json({ success: true });
   } catch (error) {
-    console.error('❌ Use PDF template error:', error);
+    logger.error('Use PDF template error', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -208,8 +209,7 @@ router.post('/templates/generate', authenticateUser, async (req: AuthenticatedRe
       return;
     }
 
-    console.log(`🤖 Generating PDF template for category: ${category}, user: ${userId}`);
-    console.log(`📝 Context:`, context);
+    logger.info('Generating PDF template', { category, userId, hasContext: !!context });
     
     // Use generateText method to create PDF content
     const prompt = context 
@@ -218,17 +218,14 @@ router.post('/templates/generate', authenticateUser, async (req: AuthenticatedRe
     
     const content = await aiService.generateText(prompt, userId);
     
-    console.log('✅ PDF template generated successfully with user context');
-    console.log('📄 Content length:', content.length);
+    logger.info('PDF template generated successfully', { contentLength: content.length });
     
     res.json({
       content,
       category
     });
   } catch (error: any) {
-    console.error('❌ Generate PDF template error:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    logger.error('Generate PDF template error', error);
     res.status(500).json({ 
       error: 'Failed to generate template',
       details: error.message 
@@ -244,7 +241,7 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
   try {
     const { title, content, filename } = req.body;
 
-    console.log('📄 Generating PDF:', { title, contentLength: content?.length, filename });
+    logger.info('Generating PDF', { title, contentLength: content?.length, filename });
 
     // Validate required fields
     if (!title || !content) {
@@ -261,18 +258,18 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
     const outputFilename = `${req.userId}_${timestamp}_${safeFilename}.pdf`;
     const outputPath = path.join(UPLOADS_DIR, outputFilename);
 
-    console.log('📁 Output path:', outputPath);
+    logger.debug('PDF output path', { outputPath });
 
     // Generate PDF
     await pdfService.generatePDF(content, outputPath, { title });
 
-    console.log('✅ PDF generated successfully');
+    logger.info('PDF generated successfully');
 
     // Get file size
     const stats = fs.statSync(outputPath);
     const fileSizeInBytes = stats.size;
 
-    console.log('💾 Saving to database...');
+    logger.debug('Saving PDF to database');
 
     // Save to database - USE supabaseAdmin
     const { data, error } = await supabaseAdmin
@@ -288,12 +285,12 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
       .single();
 
     if (error) {
-      console.error('❌ Failed to save PDF record:', error);
+      logger.error('Failed to save PDF record', error);
       res.status(500).json({ error: 'Failed to save PDF record', details: error.message });
       return;
     }
 
-    console.log('✅ PDF saved to database:', data.id);
+    logger.info('PDF saved to database', { pdfId: data.id });
 
     res.json({ 
       message: 'PDF generated successfully', 
@@ -307,9 +304,7 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
     });
     return;
   } catch (error: any) {
-    console.error('❌ Generate PDF error:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    logger.error('Generate PDF error', error);
     res.status(500).json({ 
       error: 'Failed to generate PDF', 
       details: error.message 
@@ -363,7 +358,7 @@ router.post('/generate-structured', authenticateUser, async (req: AuthenticatedR
       .single();
 
     if (error) {
-      console.error('Failed to save PDF record:', error);
+      logger.error('Failed to save PDF record', error);
       res.status(500).json({ error: 'Failed to save PDF record', details: error.message });
       return;
     }
@@ -380,7 +375,7 @@ router.post('/generate-structured', authenticateUser, async (req: AuthenticatedR
     });
     return;
   } catch (error: any) {
-    console.error('Generate structured PDF error:', error);
+    logger.error('Generate structured PDF error', error);
     res.status(500).json({ 
       error: 'Failed to generate structured PDF', 
       details: error.message 
@@ -397,7 +392,7 @@ router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Res
   try {
     const { limit = 50, offset = 0 } = req.query;
 
-    console.log('📋 Fetching PDF list for user:', req.userId);
+    logger.info('Fetching PDF list', { userId: req.userId });
 
     // Fetch from database (legacy PDFs)
     const { data: dbPdfs, error: dbError } = await supabaseAdmin
@@ -408,7 +403,7 @@ router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Res
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
     if (dbError) {
-      console.error('❌ Failed to fetch PDF files from database:', dbError);
+      logger.error('Failed to fetch PDF files from database', dbError);
     }
 
     // Fetch from Supabase Storage (cron-generated PDFs)
@@ -421,11 +416,10 @@ router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Res
       });
 
     if (storageError) {
-      console.error('❌ Failed to fetch PDFs from storage:', storageError);
+      logger.error('Failed to fetch PDFs from storage', storageError);
     }
 
-    console.log('✅ Found PDFs in database:', dbPdfs?.length || 0);
-    console.log('✅ Found PDFs in storage:', storagePdfs?.length || 0);
+    logger.debug('Found PDFs', { dbCount: dbPdfs?.length || 0, storageCount: storagePdfs?.length || 0 });
 
     // Combine and format both sources
     const dbPdfsList = (dbPdfs || []).map(pdf => ({
@@ -455,7 +449,7 @@ router.get('/list', authenticateUser, async (req: AuthenticatedRequest, res: Res
     res.json({ pdfs: allPdfs });
     return;
   } catch (error) {
-    console.error('❌ List PDFs error:', error);
+    logger.error('List PDFs error', error);
     res.status(500).json({ error: 'Failed to list PDF files' });
     return;
   }
@@ -469,7 +463,7 @@ router.get('/download/:id', authenticateUser, async (req: AuthenticatedRequest, 
   try {
     const { id } = req.params;
 
-    console.log('📥 Download request for PDF:', id, 'User:', req.userId);
+    logger.info('Download request for PDF', { pdfId: id, userId: req.userId });
 
     // Fetch PDF record
     const { data, error } = await supabaseAdmin
@@ -480,28 +474,27 @@ router.get('/download/:id', authenticateUser, async (req: AuthenticatedRequest, 
       .single();
 
     if (error || !data) {
-      console.error('❌ PDF not found in database:', error);
+      logger.error('PDF not found in database', error);
       res.status(404).json({ error: 'PDF file not found' });
       return;
     }
 
-    console.log('📄 PDF record found:', data.filename);
-    console.log('📁 File path:', data.file_path);
+    logger.debug('PDF record found', { filename: data.filename, path: data.file_path });
 
     // Check if file exists
     if (!fs.existsSync(data.file_path)) {
-      console.error('❌ PDF file not found on disk:', data.file_path);
+      logger.error('PDF file not found on disk', null, { path: data.file_path });
       res.status(404).json({ error: 'PDF file not found on disk' });
       return;
     }
 
-    console.log('✅ Sending file...');
+    logger.debug('Sending file');
 
     // Send file
     res.download(data.file_path, data.filename);
     return;
   } catch (error) {
-    console.error('Download PDF error:', error);
+    logger.error('Download PDF error', error);
     res.status(500).json({ error: 'Failed to download PDF' });
     return;
   }
@@ -516,11 +509,11 @@ router.get('/download-storage/:userId/:filename', authenticateUser, async (req: 
     const { userId, filename } = req.params;
     const filepath = `${userId}/${filename}`;
     
-    console.log('📥 Storage download request:', filepath);
+    logger.info('Storage download request', { filepath });
     
     // Verify user owns this file
     if (userId !== req.userId) {
-      console.error('❌ Unauthorized access attempt');
+      logger.warn('Unauthorized access attempt', { userId, requestedBy: req.userId });
       res.status(403).json({ error: 'Unauthorized' });
       return;
     }
@@ -531,18 +524,18 @@ router.get('/download-storage/:userId/:filename', authenticateUser, async (req: 
       .createSignedUrl(filepath, 3600); // 1 hour
     
     if (urlError || !urlData) {
-      console.error('❌ Failed to generate signed URL:', urlError);
+      logger.error('Failed to generate signed URL', urlError);
       res.status(404).json({ error: 'PDF not found' });
       return;
     }
     
-    console.log('✅ Redirecting to signed URL');
+    logger.debug('Redirecting to signed URL');
     
     // Redirect to signed URL
     res.redirect(urlData.signedUrl);
     return;
   } catch (error) {
-    console.error('❌ Download storage PDF error:', error);
+    logger.error('Download storage PDF error', error);
     res.status(500).json({ error: 'Failed to download PDF' });
     return;
   }
@@ -556,7 +549,7 @@ router.delete('/:id', authenticateUser, async (req: AuthenticatedRequest, res: R
   try {
     const { id } = req.params;
 
-    console.log('🗑️ Delete request for PDF:', id);
+    logger.info('Delete request for PDF', { pdfId: id });
 
     // Fetch PDF record
     const { data, error: fetchError } = await supabaseAdmin
@@ -567,7 +560,7 @@ router.delete('/:id', authenticateUser, async (req: AuthenticatedRequest, res: R
       .single();
 
     if (fetchError || !data) {
-      console.error('❌ PDF not found:', fetchError);
+      logger.error('PDF not found', fetchError);
       res.status(404).json({ error: 'PDF file not found' });
       return;
     }
@@ -575,7 +568,7 @@ router.delete('/:id', authenticateUser, async (req: AuthenticatedRequest, res: R
     // Delete file from disk
     if (fs.existsSync(data.file_path)) {
       fs.unlinkSync(data.file_path);
-      console.log('✅ File deleted from disk');
+      logger.debug('File deleted from disk');
     }
 
     // Delete from database
@@ -586,16 +579,16 @@ router.delete('/:id', authenticateUser, async (req: AuthenticatedRequest, res: R
       .eq('user_id', req.userId);
 
     if (deleteError) {
-      console.error('❌ Failed to delete from database:', deleteError);
+      logger.error('Failed to delete from database', deleteError);
       res.status(500).json({ error: 'Failed to delete PDF record', details: deleteError.message });
       return;
     }
 
-    console.log('✅ PDF deleted successfully');
+    logger.info('PDF deleted successfully', { pdfId: id });
     res.json({ message: 'PDF file deleted successfully' });
     return;
   } catch (error) {
-    console.error('Delete PDF error:', error);
+    logger.error('Delete PDF error', error);
     res.status(500).json({ error: 'Failed to delete PDF file' });
     return;
   }

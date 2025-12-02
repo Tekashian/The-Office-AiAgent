@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { supabaseAdmin } from '../config/supabase';
 import aiService from '../services/aiService';
+import { logger } from '../utils/logger';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -67,8 +68,7 @@ router.get('/', authenticateUser, async (req: AuthenticatedRequest, res: Respons
 
     res.json(data || []);
   } catch (error: any) {
-    console.error('❌ Get templates error:', error);
-    console.error('Error details:', error.message);
+    logger.error('Get templates error', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
@@ -211,7 +211,7 @@ router.post('/:id/use', authenticateUser, async (req: AuthenticatedRequest, res:
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Use template error:', error);
+    logger.error('Use template error', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -230,7 +230,7 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
       return;
     }
 
-    console.log(`🤖 Generating email template for category: ${category}, user: ${userId}`);
+    logger.info('Generating email template', { category, userId });
     
     // Generate template using new API
     const template = await aiService.generateEmailTemplate({
@@ -239,7 +239,7 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
       tone: 'professional',
     });
     
-    console.log('✅ Template generated successfully with user context');
+    logger.info('Template generated successfully', { category });
     
     res.json({
       subject: category,
@@ -247,9 +247,7 @@ router.post('/generate', authenticateUser, async (req: AuthenticatedRequest, res
       category
     });
   } catch (error: any) {
-    console.error('❌ Generate template error:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    logger.error('Generate template error', error);
     res.status(500).json({ 
       error: 'Failed to generate template',
       details: error.message 

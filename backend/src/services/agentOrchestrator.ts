@@ -4,6 +4,9 @@ import scraperService from './scraperService';
 import cronService from './cronService';
 import { supabase, supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';
+import { logger } from '../utils/logger';
+import nodemailer from 'nodemailer';
+import userContextService from './userContextService';
 
 /**
  * AI Agent Orchestrator
@@ -67,9 +70,18 @@ class AgentOrchestrator {
   ];
 
   /**
+   * Detect language from user message
+   */
+  private detectLanguage(message: string): string {
+    // Simple language detection based on common Polish characters and words
+    const polishIndicators = /[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]|(?:jest|czy|się|ale|dla|lub|jak|mam|może|chcę|proszę|dziękuję|witaj|cześć|dobry|zadanie|cykliczne|automatycznie|wysłać|wygeneruj|utwórz|stwórz|pobierz)/i;
+    return polishIndicators.test(message) ? 'Polish' : 'English';
+  }
+
+  /**
    * Get system prompt with available tools
    */
-  private getSystemPrompt(): string {
+  private getSystemPrompt(userLanguage: string = 'English'): string {
     const toolsDescription = this.tools
       .map(
         (tool) =>
@@ -77,10 +89,18 @@ class AgentOrchestrator {
       )
       .join('\n\n');
 
+    const languageInstruction = userLanguage === 'Polish' 
+      ? '🌍 WAŻNE: Użytkownik pisze PO POLSKU. Odpowiadaj WYŁĄCZNIE PO POLSKU we wszystkich komunikatach.'
+      : '🌍 IMPORTANT: User writes in ENGLISH. Respond in ENGLISH in all communications.';
+
     return `You are an AI office automation agent. You can help users with various tasks.
+
+${languageInstruction}
 
 Available Tools:
 ${toolsDescription}
+
+⚠️ CRITICAL: You MUST respond ONLY with a valid JSON object. Never respond with explanatory text or markdown.
 
 When a user asks you to do something, analyze their request and respond with a JSON object:
 {
@@ -89,7 +109,16 @@ When a user asks you to do something, analyze their request and respond with a J
   "parameters": { /* tool parameters */ }
 }
 
-If user request is ambiguous, use "conversation" tool and ask for clarification.
+🔑 Key tool selection rules:
+- Use "create_cron_job" for: scheduled tasks, recurring tasks, automation, cykliczne zadania, automatyczne zadania, o określonej porze, regularnie, co X czasu
+  * If frequency NOT specified, use DEFAULT: "0 9 * * *" (daily at 9am)
+  * NEVER ask user for frequency - always provide a sensible default
+- Use "send_email" for: one-time email sending (without scheduling)
+- Use "generate_pdf" for: one-time PDF creation (without scheduling)
+- Use "scrape_website" for: one-time website scraping (without scheduling)
+- Use "conversation" ONLY if you cannot determine which tool to use at all
+
+⚠️ IMPORTANT: For recurring tasks (cykliczne zadania), ALWAYS use "create_cron_job" even if frequency is not specified. Use default schedule "0 9 * * *" (daily at 9am).
 
 Examples:
 
@@ -158,6 +187,36 @@ Response: {
   }
 }
 
+User: "Utwórz zadanie cykliczne polegające na pobieraniu danych strony https://example.com"
+Response: {
+  "tool": "create_cron_job",
+  "reasoning": "User wants to create a recurring scraping task. No frequency specified, using default: daily at 9am",
+  "parameters": {
+    "name": "Scraping zadanie - example.com",
+    "schedule": "0 9 * * *",
+    "task_type": "scraper",
+    "task_config": {
+      "url": "https://example.com"
+    }
+  }
+}
+
+User: "Utwórz zadanie cykliczne wysyłające email"
+Response: {
+  "tool": "create_cron_job",
+  "reasoning": "User wants recurring email. No frequency specified, using default: daily at 9am",
+  "parameters": {
+    "name": "Cykliczne wysyłanie emaila",
+    "schedule": "0 9 * * *",
+    "task_type": "email",
+    "task_config": {
+      "to": ["user@example.com"],
+      "subject": "Codzienne przypomnienie",
+      "body": "To jest automatyczna wiadomość."
+    }
+  }
+}
+
 User: "Stwórz dokument PDF o tytule Test"
 Response: {
   "tool": "generate_pdf",
@@ -195,24 +254,41 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
    */
   async analyzeIntent(message: string, userId?: string): Promise<AgentAction> {
     try {
+      // Detect user language
+      const userLanguage = this.detectLanguage(message);
+      
       // Load user context if available
       let userContext = '';
       if (userId) {
         userContext = await aiService.getUserContext(userId);
       }
 
-      const systemPrompt = this.getSystemPrompt();
+      const systemPrompt = this.getSystemPrompt(userLanguage);
       const fullPrompt = `${userContext}${systemPrompt}\n\nUser message: "${message}"\n\nYour JSON response:`;
 
       const response = await aiService.chat(fullPrompt, []);
+      
+      logger.debug('AI raw response for intent analysis', { 
+        response: response.substring(0, 500),
+        messagePreview: message.substring(0, 100),
+        detectedLanguage: userLanguage
+      });
       
       // Parse AI response
       const cleanResponse = response.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '');
       const action = JSON.parse(cleanResponse) as AgentAction;
       
+      logger.info('Intent analyzed successfully', { 
+        tool: action.tool, 
+        reasoning: action.reasoning.substring(0, 100),
+        language: userLanguage
+      });
+      
       return action;
     } catch (error) {
-      console.error('Intent analysis failed:', error);
+      logger.error('Intent analysis failed - AI did not return valid JSON', error, {
+        message: message.substring(0, 200)
+      });
       // Fallback to conversation
       return {
         tool: 'conversation',
@@ -261,8 +337,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
     }
 
     try {
-      console.log('📧 Attempting to send email using IMAP config...');
-      console.log('🔑 User ID:', userId);
+      logger.info('Attempting to send email using IMAP config', { userId });
       
       // Get user's IMAP config (Gmail uses same credentials for SMTP)
       // Use supabaseAdmin to bypass RLS (same as emailInboxService)
@@ -288,7 +363,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
           .select('user_id, imap_user, is_active')
           .limit(5);
         
-        console.log('🔍 All IMAP configs in database:', allConfigs);
+        logger.debug('All IMAP configs in database', { count: allConfigs?.length || 0 });
         
         return 'It looks like your email couldn\'t be sent because there\'s no email configuration set up yet. Please configure your IMAP settings in AI Email Inbox to send emails.';
       }
@@ -296,7 +371,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
       const imap = imapConfigs[0];
       const decryptedPassword = decrypt(imap.imap_password);
 
-      console.log('📤 Sending email via Gmail SMTP using IMAP credentials...');
+      logger.info('Sending email via Gmail SMTP using IMAP credentials');
       
       // Get user profile for email signature and context
       const { data: profile } = await supabaseAdmin
@@ -305,7 +380,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         .eq('user_id', userId)
         .single();
 
-      console.log('👤 User profile loaded:', profile ? 'Yes' : 'No');
+      logger.debug('User profile loaded', { hasProfile: !!profile });
 
       // Generate professional email with AI using user context
       let emailBody = params.body;
@@ -313,7 +388,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
 
       // If body is simple (no formatting), enhance it with AI
       if (!params.body.includes('\n\n') && !params.body.includes('Szanowni') && !params.body.includes('Z poważaniem')) {
-        console.log('🤖 Enhancing email with AI for professional format...');
+        logger.info('Enhancing email with AI for professional format');
         
         try {
           const enhanced = await aiService.generateProfessionalEmail({
@@ -328,9 +403,9 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
           emailBody = enhanced;
           emailSubject = params.subject || 'Ważna informacja';
           
-          console.log('✅ Email enhanced with professional format');
+          logger.info('Email enhanced with professional format');
         } catch (enhanceError) {
-          console.warn('⚠️ Could not enhance email, using original:', enhanceError);
+          logger.warn('Could not enhance email, using original', { error: enhanceError instanceof Error ? enhanceError.message : String(enhanceError) });
         }
       }
 
@@ -377,7 +452,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         html: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">${htmlBody}</div>`,
       });
 
-      console.log('✅ Email sent successfully:', info.messageId);
+      logger.info('Email sent successfully', { messageId: info.messageId });
 
       // Save to database (use supabaseAdmin to bypass RLS)
       await supabaseAdmin.from('emails_sent').insert({
@@ -391,7 +466,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
 
       return `✅ Email sent successfully to ${Array.isArray(params.to) ? params.to.join(', ') : params.to}!`;
     } catch (error) {
-      console.error('Email execution error:', error);
+      logger.error('Email execution error', error);
       return `❌ Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}. Make sure you\'ve configured your email in AI Email Inbox.`;
     }
   }
@@ -430,17 +505,17 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         filename: filename,
         file_path: filepath,
         file_size: fileStats.size,
-      });
+      }).select().single();
 
       if (error) {
-        console.error('❌ Failed to save PDF to database:', error);
+        logger.error('Failed to save PDF to database', error);
       } else {
-        console.log('✅ PDF saved to database:', data);
+        logger.info('PDF saved to database', { pdfId: data?.id });
       }
 
       return `✅ PDF generated successfully: ${params.title} (${filename})\n\nTwój raport PDF jest dostępny w zakładce PDF Generator w sekcji Ostatnie PDF.`;
     } catch (error) {
-      console.error('PDF execution error:', error);
+      logger.error('PDF execution error', error);
       return `❌ Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
@@ -470,18 +545,18 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         url: params.url,
         status: 'completed',
         result_data: result,
-      });
+      }).select().single();
 
       if (error) {
-        console.error('❌ Failed to save scrape job to database:', error);
+        logger.error('Failed to save scrape job to database', error);
       } else {
-        console.log('✅ Scrape job saved to database:', data);
+        logger.info('Scrape job saved to database', { jobId: data?.id });
       }
 
       const resultPreview = JSON.stringify(result, null, 2).substring(0, 500);
       return `✅ Website scraped successfully!\n\nURL: ${params.url}\n\nData preview:\n${resultPreview}${JSON.stringify(result).length > 500 ? '...' : ''}`;
     } catch (error) {
-      console.error('Scraping execution error:', error);
+      logger.error('Scraping execution error', error);
       return `❌ Failed to scrape website: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
@@ -519,7 +594,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         enabled: true,
         task: async () => {
           // Execute based on task type
-          console.log(`🕐 Executing cron job: ${params.name} (${params.task_type})`);
+          logger.info('Executing cron job', { name: params.name, taskType: params.task_type });
 
           try {
             let result = '';
@@ -527,22 +602,22 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
             // Execute appropriate action based on task type
             switch (params.task_type) {
               case 'email':
-                console.log('📧 Sending scheduled email...');
+                logger.info('Sending scheduled email');
                 result = await this.executeSendEmail(params.task_config, userId);
                 break;
 
               case 'pdf':
-                console.log('📄 Generating scheduled PDF...');
+                logger.info('Generating scheduled PDF');
                 result = await this.executeGeneratePDF(params.task_config, userId);
                 break;
 
               case 'scraper':
-                console.log('🕷️ Running scheduled scraper...');
+                logger.info('Running scheduled scraper');
                 result = await this.executeScrapeWebsite(params.task_config, userId);
                 break;
 
               default:
-                console.error(`❌ Unknown task type: ${params.task_type}`);
+                logger.error('Unknown task type', null, { taskType: params.task_type });
                 result = `Unknown task type: ${params.task_type}`;
             }
 
@@ -556,10 +631,9 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
               })
               .eq('id', data.id);
 
-            console.log(`✅ Cron job completed: ${params.name}`);
-            console.log(`Result: ${result.substring(0, 100)}...`);
+            logger.info('Cron job completed', { name: params.name, resultPreview: result.substring(0, 100) });
           } catch (error) {
-            console.error(`❌ Cron job failed: ${params.name}`, error);
+            logger.error('Cron job failed', error, { name: params.name });
 
             // Save error to database (use supabaseAdmin to bypass RLS)
             await supabaseAdmin
@@ -576,21 +650,17 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
 
       return `✅ Scheduled task created: ${params.name}\nSchedule: ${params.schedule}\nType: ${params.task_type}\nTask will run automatically according to the schedule.`;
     } catch (error) {
-      console.error('Cron job execution error:', error);
+      logger.error('Cron job execution error', error);
       return `❌ Failed to create scheduled task: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 
   /**
-   * Execute conversation (just respond)
+   * Execute conversation (just respond) - deprecated, not used anymore
    */
   private async executeConversation(_params: any, _userId?: string): Promise<string> {
-    return 'I\'m here to help! You can ask me to:\n\n' +
-           '✉️ Send emails\n' +
-           '📄 Generate PDF documents\n' +
-           '🕷️ Scrape websites for data\n' +
-           '⏰ Schedule recurring tasks\n\n' +
-           'What would you like to do?';
+    // This method is deprecated - conversation responses are handled in processMessage
+    return '';
   }
 
   /**
@@ -598,31 +668,43 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
    */
   async processMessage(message: string, userId?: string, conversationHistory?: any[]): Promise<string> {
     try {
-      console.log('🔍 Processing message:', { message, userId });
+      // Detect user language
+      const userLanguage = this.detectLanguage(message);
+      
+      logger.info('Processing message', { 
+        message: message.substring(0, 100), 
+        userId,
+        detectedLanguage: userLanguage 
+      });
       
       // First, check if it's a simple conversation or needs tool execution
       const action = await this.analyzeIntent(message, userId);
 
-      console.log('🤖 Agent decision:', action);
+      logger.debug('Agent decision', { tool: action.tool, reasoning: action.reasoning.substring(0, 100) });
 
       if (action.tool === 'conversation') {
-        console.log('💬 Tool is conversation, using AI chat...');
+        logger.debug('Tool is conversation, using AI chat');
         // Load user context for natural conversation
         let userContext = '';
         if (userId) {
           userContext = await aiService.getUserContext(userId);
         }
         
+        // Add language instruction to ensure response matches user's language
+        const languageInstruction = userLanguage === 'Polish' 
+          ? 'Odpowiadaj WYŁĄCZNIE PO POLSKU.\n\n'
+          : 'Respond in ENGLISH.\n\n';
+        
         // Just have AI respond naturally with context
-        const contextualMessage = userContext ? `${userContext}\n\n${message}` : message;
+        const contextualMessage = `${languageInstruction}${userContext ? userContext + '\n\n' : ''}${message}`;
         return await aiService.chat(contextualMessage, conversationHistory || []);
       }
 
-      console.log('🔧 Executing action:', action.tool);
+      logger.info('Executing action', { tool: action.tool });
       // Execute the action
       const result = await this.executeAction(action, userId);
       
-      console.log('✅ Action result:', result);
+      logger.debug('Action result', { resultPreview: result.substring(0, 200) });
       
       // Load user context for natural response
       let userContext = '';
@@ -630,8 +712,12 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         userContext = await aiService.getUserContext(userId);
       }
       
-      // Have AI formulate a natural response with user context
-      const contextualPrompt = `${userContext}I just executed this action: ${action.tool} with these parameters: ${JSON.stringify(action.parameters)}. The result was: ${result}. 
+      // Have AI formulate a natural response with user context in the detected language
+      const languageInstruction = userLanguage === 'Polish'
+        ? 'Odpowiedz PO POLSKU.'
+        : 'Respond in ENGLISH.';
+      
+      const contextualPrompt = `${languageInstruction} ${userContext}I just executed this action: ${action.tool} with these parameters: ${JSON.stringify(action.parameters)}. The result was: ${result}. 
         
         Please formulate a brief, natural response to tell the user what happened. Keep it concise and friendly.`;
       
@@ -639,8 +725,11 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
 
       return naturalResponse || result;
     } catch (error) {
-      console.error('Message processing error:', error);
-      return 'Sorry, I encountered an error processing your request. Please try again.';
+      logger.error('Message processing error', error);
+      const userLanguage = this.detectLanguage(message);
+      return userLanguage === 'Polish' 
+        ? 'Przepraszam, napotkałem błąd podczas przetwarzania Twojego żądania. Spróbuj ponownie.'
+        : 'Sorry, I encountered an error processing your request. Please try again.';
     }
   }
 }

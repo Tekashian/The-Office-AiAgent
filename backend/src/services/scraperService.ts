@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import axios from 'axios';
 import { ScrapingConfig } from '../types';
 import aiService from './aiService';
+import { logger } from '../utils/logger';
 
 export class ScraperService {
 
@@ -183,14 +184,14 @@ Respond in JSON format.`,
           analysis.aiSuggestions = JSON.parse(jsonMatch[0]);
         }
       } catch (aiError) {
-        console.error('AI analysis error:', aiError);
+        logger.error('AI analysis error', aiError instanceof Error ? aiError : new Error(String(aiError)));
         analysis.aiSuggestions = null;
       }
 
       return analysis;
 
     } catch (error) {
-      console.error('Page analysis error:', error);
+      logger.error('Page analysis error', error instanceof Error ? error : new Error(String(error)), { url });
       throw error;
     }
   }

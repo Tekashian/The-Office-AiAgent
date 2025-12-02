@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { authenticateUser, AuthenticatedRequest } from '../middleware/auth';
 import { supabaseAdmin } from '../config/supabase';
 import { decrypt } from '../utils/encryption';
+import { logger } from '../utils/logger';
 import nodemailer from 'nodemailer';
 import path from 'path';
 
@@ -87,7 +88,7 @@ router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Re
       .single();
 
     if (logError) {
-      console.error('Failed to log email:', logError);
+      logger.error('Failed to log email', logError);
     }
 
     // Link attachments to sent email
@@ -106,7 +107,7 @@ router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Re
     });
     return;
   } catch (error: any) {
-    console.error('Send email error:', error);
+    logger.error('Send email error', error);
 
     // Log failed email
     try {
@@ -121,7 +122,7 @@ router.post('/send', authenticateUser, async (req: AuthenticatedRequest, res: Re
           error_message: error.message
         });
     } catch (logError) {
-      console.error('Failed to log error:', logError);
+      logger.error('Failed to log error', logError);
     }
 
     res.status(500).json({ 
@@ -210,7 +211,7 @@ router.post('/send-bulk', authenticateUser, async (req: AuthenticatedRequest, re
 
         results.sent++;
       } catch (error: any) {
-        console.error(`Failed to send email to ${email.to}:`, error);
+        logger.error('Failed to send email to recipient', error, { recipient: email.to });
         
         // Log failed email
         await supabaseAdmin
@@ -238,7 +239,7 @@ router.post('/send-bulk', authenticateUser, async (req: AuthenticatedRequest, re
     });
     return;
   } catch (error: any) {
-    console.error('Bulk email error:', error);
+    logger.error('Bulk email error', error);
     res.status(500).json({ 
       error: 'Failed to send bulk emails', 
       details: error.message 
@@ -270,7 +271,7 @@ router.get('/history', authenticateUser, async (req: AuthenticatedRequest, res: 
     res.json(data || []);
     return;
   } catch (error) {
-    console.error('Email history error:', error);
+    logger.error('Email history error', error);
     res.status(500).json({ error: 'Failed to fetch email history' });
     return;
   }

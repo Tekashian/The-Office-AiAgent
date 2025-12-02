@@ -6,6 +6,7 @@ import agentOrchestrator from '../services/agentOrchestrator';
 import aiService from '../services/aiService';
 import { supabase } from '../config/supabase';
 import { ValidationError } from '../utils/errors';
+import { logger } from '../utils/logger';
 
 /**
  * Agent Controller
@@ -46,7 +47,7 @@ class AgentController extends BaseController {
           },
         ]);
       } catch (dbError) {
-        console.error('Failed to save chat messages:', dbError);
+        logger.error('Failed to save chat messages', dbError);
         // Continue even if database save fails
       }
     }

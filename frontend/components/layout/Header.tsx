@@ -260,7 +260,7 @@ export function Header() {
                 ) : searchResults.length === 0 ? (
                   <div className="p-8 text-center text-gray-400 dark:text-gray-500">
                     <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Brak wyników dla "{searchQuery}"</p>
+                    <p>Brak wyników dla &quot;{searchQuery}&quot;</p>
                   </div>
                 ) : (
                   <div>

@@ -26,7 +26,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
 
   // Capture response
   const originalSend = res.send;
-  res.send = function (data: any): Response {
+  res.send = function (data: unknown): Response {
     const duration = Date.now() - startTime;
     
     // Log response
@@ -37,7 +37,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
       duration,
       {
         correlationId,
-        userId: (req as any).userId,
+        userId: (req as Record<string, unknown> & { userId?: string }).userId,
         query: Object.keys(req.query).length > 0 ? req.query : undefined,
       }
     );

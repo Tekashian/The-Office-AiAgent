@@ -30,7 +30,7 @@ export const errorHandler = (
   }
 
   // Handle axios errors
-  if ((err as any).isAxiosError) {
+  if (err && typeof err === 'object' && 'isAxiosError' in err && err.isAxiosError) {
     statusCode = 502;
     message = 'External API request failed';
   }

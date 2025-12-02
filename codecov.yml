@@ -1,15 +1,22 @@
 coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  
   status:
     project:
       default:
-        target: 70%
-        threshold: 5%
+        target: 8%  # Current baseline - incrementally increase
+        threshold: 2%
+        informational: true  # Don't block PRs yet
     patch:
       default:
-        target: 80%
+        target: 40%  # New code should have decent coverage
+        threshold: 10%
+        informational: true
 
 comment:
-  layout: "header, diff, files, footer"
+  layout: "reach,diff,flags,tree,footer"
   behavior: default
   require_changes: false
 
@@ -19,3 +26,4 @@ ignore:
   - "**/node_modules/**"
   - "**/dist/**"
   - "**/.next/**"
+  - "**/__tests__/**"

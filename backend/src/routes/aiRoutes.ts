@@ -28,11 +28,11 @@ router.post('/generate', authenticateUser, async (req: Request, res: Response): 
       content: response.content,
       type: type || 'text'
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ AI generation error:', error);
     res.status(500).json({ 
       error: 'Failed to generate AI content',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 });

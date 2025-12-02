@@ -66,7 +66,7 @@ export abstract class BaseController {
   /**
    * Parse query param as array
    */
-  protected parseArrayParam(value: any): string[] {
+  protected parseArrayParam(value: unknown): string[] {
     if (Array.isArray(value)) return value;
     if (typeof value === 'string') return value.split(',');
     return [];

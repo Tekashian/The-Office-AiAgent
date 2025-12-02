@@ -17,7 +17,7 @@ coverage
 .env.local
 .env.development
 nodemon.json
-tsconfig.json
+# tsconfig.json - NEEDED FOR BUILD!
 
 # Documentation
 *.md

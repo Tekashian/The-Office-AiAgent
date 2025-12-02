@@ -24,12 +24,13 @@ jest.setTimeout(10000);
 // Suppress console.error during tests (expected errors in error handler tests)
 const originalError = console.error;
 beforeAll(() => {
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     if (
-      args[0]?.includes?.('Authentication error') ||
-      args[0]?.includes?.('CRITICAL ERROR') ||
-      args[0]?.includes?.('Optional auth error') ||
-      args[0]?.includes?.('Error Details')
+      args[0]?.toString?.().includes('Authentication error') ||
+      args[0]?.toString?.().includes('CRITICAL ERROR') ||
+      args[0]?.toString?.().includes('Optional auth error') ||
+      args[0]?.toString?.().includes('Error Details') ||
+      args[0]?.toString?.().includes('Decryption error')
     ) {
       return; // Suppress expected test errors
     }

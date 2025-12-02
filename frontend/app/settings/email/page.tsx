@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, signOut } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
@@ -30,16 +30,16 @@ export default function EmailSettingsPage() {
     smtp_password: '',
   });
 
-  const checkUser = async () => {
+  const checkUser = useCallback(async () => {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       router.push('/auth');
     } else {
       setUser(currentUser);
     }
-  };
+  }, [router]);
 
-  const fetchConfigs = async () => {
+  const fetchConfigs = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/email-config');
       setConfigs(response.data.configs || []);
@@ -48,17 +48,12 @@ export default function EmailSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkUser();
     fetchConfigs();
-  }, [checkUser]);
-      console.error('Failed to fetch configs:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [checkUser, fetchConfigs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

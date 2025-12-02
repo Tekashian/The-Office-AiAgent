@@ -9,7 +9,7 @@ export interface AgentTask {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
-  result?: any;
+  result?: Record<string, unknown>;
   error?: string;
 }
 

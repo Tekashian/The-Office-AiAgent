@@ -174,7 +174,7 @@ export default function EmailInboxPage() {
       setSelectedDraft({ ...selectedDraft, edited_body: editedBody, user_edited: true, status: 'edited' });
       setEditingDraft(false);
       showToast('Draft saved successfully!', 'success');
-    } catch (error) {
+    } catch {
       showToast('Failed to save draft', 'error');
     }
   };

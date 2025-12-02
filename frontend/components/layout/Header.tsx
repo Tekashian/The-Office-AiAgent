@@ -14,7 +14,7 @@ interface Notification {
   message: string;
   read: boolean;
   created_at: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface SearchResult {
@@ -23,7 +23,7 @@ interface SearchResult {
   title: string;
   description?: string;
   date?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export function Header() {

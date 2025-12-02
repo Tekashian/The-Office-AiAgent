@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { Play, Pause, Edit, Trash2, Calendar, Clock } from 'lucide-react';
+import { Play, Pause, Edit, Trash2, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';

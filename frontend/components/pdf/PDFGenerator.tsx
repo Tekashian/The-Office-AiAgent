@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { FileText, Download, Eye } from 'lucide-react';
+import { Download, Eye } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';

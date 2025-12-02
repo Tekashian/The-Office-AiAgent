@@ -15,7 +15,7 @@ interface TaskModalProps {
     name: string;
     schedule: string;
     task_type: string;
-    task_config: any;
+    task_config: Record<string, unknown>;
     enabled: boolean;
   }) => Promise<boolean>;
   onGenerateConfig: (taskType: string, jobName: string) => Promise<string | null>;

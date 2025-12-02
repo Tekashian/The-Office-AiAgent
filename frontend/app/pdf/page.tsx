@@ -55,6 +55,7 @@ export default function PDFPage() {
   };
 
   const handleUseTemplate = async (template: PDFTemplate) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await useTemplate(template);
     showToast(`Użyto szablonu: ${template.name}`, 'success');
   };

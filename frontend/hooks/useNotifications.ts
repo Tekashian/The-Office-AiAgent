@@ -86,7 +86,7 @@ export function useNotifications(
 
     try {
       await apiClient.patch(`/api/notifications/${id}/read`);
-    } catch (err) {
+    } catch {
       // Rollback on error
       setNotifications(previousNotifications);
       const errorMessage = 'Failed to mark notification as read';
@@ -101,7 +101,7 @@ export function useNotifications(
 
     try {
       await apiClient.post('/api/notifications/mark-all-read');
-    } catch (err) {
+    } catch {
       setNotifications(previousNotifications);
       const errorMessage = 'Failed to mark all as read';
       setError(errorMessage);
@@ -115,7 +115,7 @@ export function useNotifications(
 
     try {
       await apiClient.delete(`/api/notifications/${id}`);
-    } catch (err) {
+    } catch {
       setNotifications(previousNotifications);
       const errorMessage = 'Failed to delete notification';
       setError(errorMessage);
@@ -129,7 +129,7 @@ export function useNotifications(
 
     try {
       await apiClient.delete('/api/notifications/read/all');
-    } catch (err) {
+    } catch {
       setNotifications(previousNotifications);
       const errorMessage = 'Failed to delete read notifications';
       setError(errorMessage);

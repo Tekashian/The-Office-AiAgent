@@ -41,7 +41,13 @@ export default function TasksPage() {
     checkAuth();
   }, [showToast]);
 
-  const handleCreateOrUpdateJob = async (data: any) => {
+  const handleCreateOrUpdateJob = async (data: {
+    name: string;
+    schedule: string;
+    task_type: string;
+    task_config: Record<string, unknown>;
+    enabled: boolean;
+  }) => {
     if (editingJob) {
       const success = await updateJob(editingJob.id, data);
       if (success) {

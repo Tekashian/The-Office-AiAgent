@@ -59,7 +59,6 @@ interface AIDraft {
 export default function EmailInboxPage() {
   const { showToast } = useToast();
   const [emails, setEmails] = useState<InboxEmail[]>([]);
-  const [drafts, setDrafts] = useState<AIDraft[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<InboxEmail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<AIDraft | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,31 +74,29 @@ export default function EmailInboxPage() {
   });
   const router = useRouter();
 
-  useEffect(() => {
-    checkAuthAndLoad();
-  }, [checkAuthAndLoad]);
-
-  const checkAuthAndLoad = async () => {
+  const checkAuthAndLoad = React.useCallback(async () => {
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       router.push('/auth');
       return;
     }
     await loadData();
-  };
+  }, [router]);
+
+  useEffect(() => {
+    checkAuthAndLoad();
+  }, [checkAuthAndLoad]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       console.log('📧 Loading email inbox data...');
-      const [emailsRes, draftsRes, statsRes] = await Promise.all([
+      const [emailsRes, statsRes] = await Promise.all([
         apiClient.get('/api/email-inbox/emails?limit=50'),
-        apiClient.get('/api/email-inbox/drafts?status=pending'),
         apiClient.get('/api/email-inbox/stats'),
       ]);
 
       setEmails(emailsRes.data.emails || []);
-      setDrafts(draftsRes.data.drafts || []);
       setStats(statsRes.data);
       console.log('✅ Email inbox loaded successfully');
     } catch (error) {

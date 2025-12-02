@@ -31,7 +31,7 @@ export default function ScraperPage() {
     setSelectedJob,
   } = useScraper();
 
-  const handleCreateJob = async (data: any) => {
+  const handleCreateJob = async (data: Record<string, unknown>) => {
     const success = await createJob(data);
     if (success) {
       showToast('Scraper utworzony pomyślnie!', 'success');
@@ -54,7 +54,7 @@ export default function ScraperPage() {
     showToast('Scraper usunięty', 'success');
   };
 
-  const handleViewHistory = (job: any) => {
+  const handleViewHistory = (job: { id: string; name: string }) => {
     setSelectedJob(job);
     fetchHistory(job.id);
     setShowHistory(true);

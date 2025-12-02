@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { getAccessToken, getCurrentUser } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
 
@@ -74,7 +73,6 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export function useEmail(options: UseEmailOptions = {}): UseEmailReturn {
   const { requireAuth = true } = options;
-  const router = useRouter();
 
   // Form state
   const [recipient, setRecipient] = useState('');

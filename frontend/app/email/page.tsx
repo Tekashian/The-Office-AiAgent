@@ -55,6 +55,7 @@ export default function EmailPage() {
   };
 
   const handleUseTemplate = async (template: EmailTemplate) => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await useTemplate(template);
     showToast(`Szablon "${template.name}" zastosowany`, 'success');
   };

@@ -1,0 +1,861 @@
+
+@startuml Office-AI-Agent-Component-Diagram
+title The Office AI Agent - Senior-Level Architecture (Clean Architecture + SOLID + Enterprise Patterns)
+
+' ============================================
+' SENIOR-LEVEL LAYOUT CONFIGURATION
+' ============================================
+' Hierarchical top-to-bottom flow (Clean Architecture layers)
+' No crossing lines, clear visual separation
+skinparam componentStyle rectangle
+skinparam BackgroundColor #FFFFFF
+skinparam shadowing false
+skinparam RoundCorner 10
+skinparam defaultTextAlignment center
+skinparam packageBorderColor #888888
+skinparam packageBackgroundColor #F5F5F5
+skinparam componentBorderColor #333333
+skinparam componentBackgroundColor #FFFFFF
+skinparam databaseBackgroundColor #E0F7FA
+skinparam databaseBorderColor #00838F
+skinparam cloudBackgroundColor #FFF3E0
+skinparam cloudBorderColor #FF9800
+skinparam noteBackgroundColor #FFF9C4
+skinparam noteBorderColor #FBC02D
+
+' Arrow styling - minimal, clean
+skinparam ArrowColor #616161
+skinparam ArrowThickness 2
+skinparam ArrowFontSize 10
+
+' Layout direction: top to bottom (natural reading)
+left to right direction
+
+!define PRESENTATION 🎨
+!define APPLICATION 🎯
+!define DOMAIN 💎
+!define INFRASTRUCTURE 🏗️
+!define EXTERNAL ☁️
+
+
+' ============================================
+' EXTERNAL LAYER (Outside System Boundary)
+' ============================================
+cloud "EXTERNAL External Services" as ExtCloud #FFECB3 {
+    component "🤖 Gemini AI\n(LLM Provider)" as GeminiAPI #FFE0B2
+    component "📧 Gmail\n(SMTP/IMAP)" as Gmail #FFE0B2
+    component "🌐 Target Websites\n(HTTP)" as WebSites #FFE0B2
+    
+    note right of GeminiAPI
+        **External Dependency**
+        • API Gateway pattern
+        • Circuit breaker (future)
+        • Retry with exponential backoff
+    end note
+}
+
+
+' ============================================
+' PRESENTATION LAYER (Frontend - Clean Architecture)
+' ============================================
+package "PRESENTATION Presentation Layer - Frontend (Next.js 15 + React 19)" #E3F2FD {
+    
+    note as N1
+        **Clean Architecture - Presentation Layer**
+        • Dependency Rule: Only depends on Application Layer (API)
+        • UI is a detail, can be replaced (Web → Mobile → Desktop)
+        • SOLID: Single Responsibility (each page = one feature)
+        • Pattern: Presentation-Domain Separation
+    end note
+    
+    package "📱 Pages (Routes)" as Pages #E1F5FE {
+        component "💬 Agent Chat" as AgentPage #B3E5FC
+        component "📥 Email Management" as EmailPage #B3E5FC
+        component "📄 PDF Generator" as PDFPage #B3E5FC
+        component "🔎 Web Scraper" as ScraperPage #B3E5FC
+        component "⏰ Scheduled Tasks" as CronPage #B3E5FC
+        component "📬 Email Inbox" as InboxPage #B3E5FC
+        component "⚙️ Settings" as SettingsPage #B3E5FC
+        component "🔔 Notifications" as NotifPage #B3E5FC
+        component "📊 Dashboard" as DashboardPage #B3E5FC
+    }
+    
+    package "🧩 UI Components (Reusable)" as UIComponents #E1F5FE {
+        component "📦 Design System\n(Cards, Buttons, Modals)" as SharedUI #B3E5FC
+        component "🔔 Domain Components\n(NotificationList, Toast)" as NotifComponents #B3E5FC
+    }
+    
+    package "🪝 Business Logic (Custom Hooks)" as Hooks #E1F5FE {
+        component "useAgent\n(AI Chat)" as useAgent #B3E5FC
+        component "useEmail\n(Email Management)" as useEmail #B3E5FC
+        component "usePDF\n(PDF Generation)" as usePDF #B3E5FC
+        component "useScraper\n(Web Scraping)" as useScraper #B3E5FC
+        component "useTasks\n(Cron Jobs)" as useTasks #B3E5FC
+        component "useNotifications\n(Notifications)" as useNotifications #B3E5FC
+    }
+    
+    package "🔄 Context Providers (State Management)" as ContextProviders #E1F5FE {
+        component "NotificationProvider\n(Toast Notifications)" as NotificationProvider #B3E5FC
+        component "PDFRefreshProvider\n(Cross-page Sync)" as PDFRefreshProvider #B3E5FC
+    }
+    
+    note right of ContextProviders
+        **React Context Pattern**
+        
+        **NotificationProvider:**
+        • Global toast notification system
+        • addNotification(type, message)
+        • Auto-dismiss after 5 seconds
+        • Used across all pages
+        
+        **PDFRefreshProvider:**
+        • Triggers PDF list refresh
+        • Cross-page synchronization
+        • Agent generates PDF → PDF page refreshes
+        • Lightweight state: refreshKey counter
+        
+        **Why Context over Props:**
+        • Avoid prop drilling (10+ levels deep)
+        • Centralized state management
+        • Performance: only consumers re-render
+        • Clean component interfaces
+    end note
+    
+    package "🔌 Infrastructure Adapters" as FrontendInfra #E1F5FE {
+        component "🌐 API Client\n(Axios + Interceptors)" as APIClient #90CAF9
+        component "🗄️ Supabase Client\n(Direct DB Access)" as SupabaseFrontend #90CAF9
+        component "🔒 Auth Helpers\n(JWT + Session)" as AuthFrontend #90CAF9
+    }
+    
+    note right of Hooks
+        **Custom Hooks = Application Layer**
+        • Domain-specific business logic
+        • Each hook = one feature area
+        • API calls + local state
+        • Error handling + loading states
+        • Reusable across pages
+        
+        **Pattern: Custom Hook per Domain**
+        • useAgent → AI chat functionality
+        • useEmail → Email operations
+        • usePDF → PDF generation
+        • useScraper → Web scraping
+        • useTasks → Cron job management
+        • useNotifications → Notification CRUD
+    end note
+}
+
+
+' ============================================
+' APPLICATION LAYER (Backend - Clean Architecture)
+' ============================================
+package "APPLICATION Backend API - Clean Architecture (Node.js + Express + TS)" #FFF8E1 {
+    
+    note as N2
+        **Clean Architecture - Onion Model**
+        Domain (Core) ← Application ← Infrastructure ← Presentation
+        
+        **Dependency Rule:**
+        • Outer layers depend on inner layers
+        • Inner layers know NOTHING about outer layers
+        • Abstractions (interfaces) enable Dependency Inversion
+        
+        **SOLID Principles Applied:**
+        • S: Each service has one responsibility
+        • O: Services are open for extension via inheritance
+        • L: BaseController/BaseService are substitutable
+        • I: Small, focused interfaces (no god objects)
+        • D: High-level modules depend on abstractions
+    end note
+    
+    ' ============================================
+    ' INFRASTRUCTURE LAYER (Framework & Cross-Cutting)
+    ' ============================================
+    package "INFRASTRUCTURE Infrastructure Layer (Express)" #FFFDE7 {
+        component "🚦 Express App\n(HTTP Server)" as ExpressServer #FFE082
+        
+        package "🛡️ Middleware Pipeline (Cross-Cutting Concerns)" #FFF9C4 {
+            component "1️⃣ Helmet\n(Security Headers)" as Helmet #FFD54F
+            component "2️⃣ CORS\n(Access Control)" as CORS #FFD54F
+            component "3️⃣ Request Logger\n(Correlation ID)" as RequestLogger #FFD54F
+            component "4️⃣ Rate Limiter\n(DDoS Protection)" as RateLimiter #FFD54F
+            component "5️⃣ Auth Middleware\n(JWT Validation)" as AuthMiddleware #FFD54F
+            component "6️⃣ Validation\n(Zod Schemas)" as ValidationMiddleware #FFD54F
+            component "7️⃣ Upload Handler\n(Multer)" as UploadMiddleware #FFD54F
+            component "⚡ asyncHandler\n(Error Wrapper)" as AsyncHandler #FFD54F
+            component "8️⃣ Error Handler\n(Global Catch)" as ErrorHandler #FFD54F
+        }
+        
+        note right of RequestLogger
+            **Middleware = Chain of Responsibility Pattern**
+            Each middleware decides: pass to next() or terminate
+            Cross-cutting concerns isolated from business logic
+        end note
+        
+        note right of AsyncHandler
+            **asyncHandler = Higher-Order Function**
+            • Wraps ALL async route handlers
+            • Eliminates try-catch boilerplate
+            • Catches errors → passes to errorHandler
+            
+            **Before (12 lines):**
+            ```typescript
+            router.get('/data', async (req, res) => {
+              try {
+                const data = await service.getData();
+                res.json(data);
+              } catch (err) {
+                next(err);
+              }
+            });
+            ```
+            
+            **After (4 lines):**
+            ```typescript
+            router.get('/data', asyncHandler(
+              async (req, res) => {
+                const data = await service.getData();
+                res.json(data);
+              }
+            ));
+            ```
+            
+            **Impact:**
+            • 70+ routes refactored
+            • ~600 lines of code eliminated
+            • Consistent error handling
+            • Impossible to forget error handling
+        end note
+    }
+    
+    ' ============================================
+    ' PRESENTATION LAYER (API Routes - Thin Layer)
+    ' ============================================
+    package "PRESENTATION API Routes (RESTful Endpoints)" #FFF3E0 {
+        note as N3
+            **Routes = Presentation Layer**
+            • Thin routing layer (10-30 lines each)
+            • No business logic
+            • Delegates to Controllers
+            • RESTful conventions
+            • OpenAPI documentation ready
+        end note
+        
+        component "🤖 /api/agent\n(chat, task, analyze)" as AgentRoutes #FFF9C4
+        component "🧠 /api/ai\n(process, context)" as AIRoutes #FFF9C4
+        component "📧 /api/email\n(send SMTP)" as EmailRoutes #FFF9C4
+        component "📬 /api/email-inbox\n(IMAP, drafts)" as InboxRoutes #FFF9C4
+        component "⚙️ /api/email-config\n(SMTP settings)" as EmailConfigRoutes #FFF9C4
+        component "📝 /api/email-templates\n(templates CRUD)" as EmailTemplateRoutes #FFF9C4
+        component "📄 /api/pdf\n(generate, files)" as PDFRoutes #FFF9C4
+        component "🔎 /api/scraper\n(jobs, history)" as ScraperRoutes #FFF9C4
+        component "⏰ /api/cron\n(schedule, manage)" as CronRoutes #FFF9C4
+        component "📊 /api/dashboard\n(stats, metrics)" as DashboardRoutes #FFF9C4
+        component "👤 /api/user-context\n(profile, prefs)" as UserContextRoutes #FFF9C4
+        component "🔔 /api/notifications\n(CRUD)" as NotificationRoutes #FFF9C4
+        component "🔍 /api/search\n(global search)" as SearchRoutes #FFF9C4
+    }
+    
+    ' ============================================
+    ' APPLICATION LAYER (Controllers - Request Handlers)
+    ' ============================================
+    package "APPLICATION Controllers (Request/Response Handling)" #E1BEE7 {
+        component "🎯 BaseController\n(Abstract Base)" as BaseController #CE93D8
+        component "🤖 AgentController\nextends Base" as AgentController #CE93D8
+        component "📊 DashboardController\nextends Base" as DashboardController #CE93D8
+        
+        note right of BaseController
+            **⚠️ ARCHITECTURAL DEBT ALERT**
+            
+            **Current Reality:**
+            ✅ **Using Controllers (2/13 routes):**
+            • AgentController → /api/agent (3 endpoints)
+            • DashboardController → /api/dashboard (partial)
+            
+            ❌ **NO Controllers (11/13 routes):**
+            • EmailRoutes → inline handlers (280 lines)
+            • PDFRoutes → inline handlers (597 lines)
+            • ScraperRoutes → inline handlers (499 lines)
+            • CronRoutes → inline handlers (610 lines)
+            • InboxRoutes → inline handlers (439 lines)
+            • NotificationRoutes → inline handlers (284 lines)
+            • UserContextRoutes → inline handlers (314 lines)
+            • EmailConfigRoutes → inline handlers (167 lines)
+            • EmailTemplateRoutes → inline handlers (320 lines)
+            • SearchRoutes → inline handlers (186 lines)
+            • AIRoutes → inline handlers (40 lines)
+            
+            **Technical Debt:**
+            ~3,736 lines of business logic in routers
+            
+            **Why This Is Bad:**
+            1. ❌ Violates Single Responsibility (routes handle HTTP + logic)
+            2. ❌ Hard to test (coupled to Express)
+            3. ❌ Code duplication (response formatting)
+            4. ❌ Inconsistent error handling
+            5. ❌ Not true Clean Architecture
+            
+            **BaseController Pattern (Should Be Used):**
+            • success(data, message, code)
+            • created(data)
+            • noContent()
+            • getUserId(req): string
+            • getPagination(req)
+            
+            **Refactoring Priority:**
+            🔴 HIGH: EmailRoutes, PDFRoutes (largest files)
+            🟡 MEDIUM: ScraperRoutes, CronRoutes
+            🟢 LOW: Small routes (AIRoutes, SearchRoutes)
+            
+            **Estimated Effort:**
+            • ~40 hours to refactor all routes
+            • ~50% code reduction (DRY via BaseController)
+            • +80% test coverage improvement
+        end note
+    }
+    
+    ' ============================================
+    ' DOMAIN LAYER (Business Logic - Core of the System)
+    ' ============================================
+    package "DOMAIN Domain/Business Logic Layer (Services)" #E8F5E9 {
+        
+        ' Core Abstraction
+        component "💎 BaseService<T>\n(Generic Repository)" as BaseService #81C784
+        
+        note right of BaseService
+            **Repository Pattern + Generic Programming**
+            
+            **CRUD Operations:**
+            • findById(id): T
+            • findAll(options): T[]
+            • create(data): T
+            • update(id, data): T
+            • delete(id): void
+            • count(userId): number
+            • exists(id): boolean
+            
+            **Benefits:**
+            • DRY - no repeated CRUD code
+            • Type-safe with generics
+            • Consistent data access
+            • Testable (mock Supabase)
+            • Follows Single Responsibility
+        end note
+        
+        ' Domain Services (Business Logic)
+        component "🤖 AgentOrchestrator\n(Orchestrator)" as AgentOrchestrator #A5D6A7
+        component "🧠 AIService\n(Standalone)" as AIService #A5D6A7
+        component "📧 EmailService\n(Standalone)" as EmailService #A5D6A7
+        component "📬 InboxService\n(Standalone)" as InboxService #A5D6A7
+        component "📄 PDFService\n(Standalone)" as PDFService #A5D6A7
+        component "🔎 ScraperService\n(Standalone)" as ScraperService #A5D6A7
+        component "⏰ CronService\n(Standalone)" as CronService #A5D6A7
+        component "👤 UserContextService\nextends BaseService" as UserContextService #A5D6A7
+        
+        note left of BaseService
+            **Repository Pattern Status**
+            
+            ✅ **Using BaseService:**
+            • UserContextService (refactored)
+            
+            ⚠️ **NOT Using BaseService:**
+            • AIService (custom logic)
+            • EmailService (nodemailer)
+            • InboxService (IMAP client)
+            • PDFService (PDFKit)
+            • ScraperService (Cheerio)
+            • CronService (node-cron)
+            
+            **Why Not All Services Extend Base?**
+            • Some need specialized clients
+            • Not all are CRUD-based
+            • BaseService = database operations
+            • Other services = external APIs/tools
+            
+            **Future Refactoring:**
+            Consider extracting common patterns
+            (logging, error handling) to mixins
+        end note
+        
+        note right of AgentOrchestrator
+            **Orchestrator/Mediator Pattern**
+            • Central coordination point
+            • Natural language → Tool mapping
+            • Executes: Email, PDF, Scraper, AI
+            • Language detection (PL/EN)
+            • Cron job integration
+            • Low coupling between services
+        end note
+        
+        note right of AIService
+            **Adapter Pattern (Gemini AI)**
+            • Abstracts external AI provider
+            • Easy to swap LLM (OpenAI, Anthropic)
+            • User context aggregation
+            • Language-aware prompts
+            • Retry logic + error handling
+        end note
+        
+        note right of InboxService
+            **Facade Pattern**
+            • Complex IMAP operations
+            • AI-powered email analysis
+            • Auto-draft generation
+            • Multi-step workflow
+            • Hides complexity from clients
+        end note
+        
+        note right of CronService
+            **Scheduler Pattern + Strategy**
+            • node-cron wrapper
+            • Triggers AgentOrchestrator
+            • Dynamic job registration
+            • Per-user isolation
+            • Async execution
+        end note
+    }
+    
+    ' ============================================
+    ' INFRASTRUCTURE LAYER (Technical Capabilities)
+    ' ============================================
+    package "INFRASTRUCTURE Technical Infrastructure" #F3E5F5 {
+        
+        package "🔧 Utilities (Cross-Cutting)" #E1BEE7 {
+            component "📋 Logger\n(Singleton)" as Logger #CE93D8
+            component "🚀 Cache\n(LRU + TTL)" as Cache #CE93D8
+            component "❌ Error Hierarchy\n(AppError base)" as ErrorClasses #CE93D8
+            component "⚡ Performance Monitor\n(Timing)" as Performance #CE93D8
+            component "🔐 Encryption\n(AES-256)" as Encryption #CE93D8
+            component "💾 File Storage\n(Local FS)" as FileStorage #CE93D8
+            component "🧪 Environment Validator" as ValidateEnv #CE93D8
+            
+            note right of Logger
+                **Singleton Pattern**
+                • Single instance
+                • Structured logging (JSON)
+                • Correlation IDs
+                • Levels: DEBUG, INFO, WARN, ERROR
+                • Used by ALL services
+            end note
+            
+            note right of Cache
+                **Singleton + Strategy**
+                • In-memory LRU cache
+                • TTL-based expiration
+                • Automatic eviction
+                • Used for: dashboard stats, user context
+                • Future: Redis adapter (Strategy)
+            end note
+            
+            note right of ErrorClasses
+                **Error Hierarchy (Inheritance)**
+                AppError (base)
+                  ├─ ValidationError (400)
+                  ├─ AuthenticationError (401)
+                  ├─ NotFoundError (404)
+                  └─ DatabaseError (500)
+                
+                **Benefits:**
+                • Type-safe error handling
+                • Consistent HTTP codes
+                • Easy error categorization
+            end note
+        }
+        
+        package "⚙️ Configuration Management" #B2DFDB {
+            component "🔧 Config Singleton\n(Type-Safe)" as Config #80CBC4
+            
+            note right of Config
+                **Singleton + Factory Pattern**
+                • Centralized configuration
+                • Environment variables
+                • Type-safe access
+                • Validation on startup
+                • Domains: Server, DB, AI, Email, Security
+            end note
+        }
+        
+        package "🗄️ Data Access Layer" #B2EBF2 {
+            component "🗄️ Supabase Admin Client\n(PostgreSQL)" as SupabaseBackend #80DEEA
+            
+            note right of SupabaseBackend
+                **Repository Pattern Implementation**
+                • RLS bypass (admin client)
+                • Type-safe queries
+                • Real-time subscriptions
+                • Transaction support
+                • Used by ALL services via BaseService
+            end note
+        }
+    }
+
+
+' ============================================
+' DATABASE LAYER (Persistence - PostgreSQL via Supabase)
+' ============================================
+database "INFRASTRUCTURE Database - PostgreSQL 15 (Supabase Cloud)" as SupabaseDB #E0F7FA {
+    
+    note as N4
+        **Database Architecture**
+        • Row Level Security (RLS) - Multi-tenant isolation
+        • Supabase Auth integration
+        • Real-time subscriptions (WebSocket)
+        • Automated backups
+        • Connection pooling (PgBouncer)
+        • PostgREST API (not used - we use JS SDK)
+    end note
+    
+    package "👤 User & Auth" #B2EBF2 {
+        component "[user_profiles]\nid, user_id, full_name,\npreferences" as profiles_tbl #80DEEA
+        component "[user_context]\nid, user_id,\ncontext_data" as context_tbl #80DEEA
+    }
+    
+    package "📧 Email Domain" #B2EBF2 {
+        component "[user_imap_configs]\nIMAP credentials" as imap_tbl #80DEEA
+        component "[user_email_configs]\nSMTP credentials" as smtp_tbl #80DEEA
+        component "[emails_inbox]\nReceived emails" as inbox_tbl #80DEEA
+        component "[ai_email_drafts]\nAI responses" as drafts_tbl #80DEEA
+        component "[emails_sent]\nSent history" as sent_tbl #80DEEA
+        component "[email_templates]\nReusable templates" as templates_tbl #80DEEA
+        component "[email_attachments]\nFile attachments" as attachments_tbl #80DEEA
+    }
+    
+    package "📄 Document Domain" #B2EBF2 {
+        component "[pdf_templates]\nPDF designs" as pdf_tmpl_tbl #80DEEA
+        component "[pdf_files]\nGenerated PDFs" as pdf_tbl #80DEEA
+    }
+    
+    package "🔎 Scraper Domain" #B2EBF2 {
+        component "[scrape_jobs]\nScraping configs" as scrape_tbl #80DEEA
+        component "[scrape_history]\nExecution logs" as scrape_hist_tbl #80DEEA
+    }
+    
+    package "⏰ Automation Domain" #B2EBF2 {
+        component "[cron_jobs]\nScheduled tasks" as cron_tbl #80DEEA
+    }
+    
+    package "🔔 Notification Domain" #B2EBF2 {
+        component "[notifications]\nUser alerts" as notif_tbl #80DEEA
+        component "[chat_messages]\nAI conversations" as chat_tbl #80DEEA
+    }
+    
+    note right of inbox_tbl
+        **Domain-Driven Design**
+        • Tables grouped by bounded context
+        • Each domain = one microservice (future)
+        • Clear ownership boundaries
+        • Independent scaling paths
+    end note
+}
+
+
+' ============================================
+' DEPENDENCY FLOW (Clean Architecture - Dependency Rule)
+' ============================================
+
+note as N5
+    **The Dependency Rule (Clean Architecture)**
+    
+    Source code dependencies must point INWARD:
+    Presentation → Application → Domain → Infrastructure
+    
+    **Why?**
+    • Domain (business logic) has ZERO dependencies
+    • Easy to test domain in isolation
+    • Easy to change UI, DB, frameworks
+    • Business rules are protected
+    
+    **How?**
+    • Dependency Inversion Principle (SOLID)
+    • Interfaces/Abstractions at boundaries
+    • Infrastructure implements domain interfaces
+end note
+
+' ============================================
+' FRONTEND INTERNAL DEPENDENCIES
+' ============================================
+Pages -[#1976D2]-> Hooks : <<use>> Business Logic
+Pages -[#1976D2]-> UIComponents : <<render>> Composition
+Pages -[#1976D2]-> ContextProviders : <<consume>> Global State
+Hooks -[#1976D2]-> FrontendInfra : <<depend>> I/O Operations
+Hooks -[#1976D2]-> ContextProviders : <<use>> Context
+useAgent -[#1976D2]-> APIClient : <<call>> HTTP
+useEmail -[#1976D2]-> APIClient : <<call>> HTTP
+usePDF -[#1976D2]-> APIClient : <<call>> HTTP
+usePDF -[#1976D2]-> PDFRefreshProvider : <<consume>> Refresh trigger
+useScraper -[#1976D2]-> APIClient : <<call>> HTTP
+useTasks -[#1976D2]-> APIClient : <<call>> HTTP
+useNotifications -[#1976D2]-> APIClient : <<call>> HTTP
+APIClient -[#1976D2]-> AuthFrontend : <<getAccessToken>> JWT
+useRealtime -[#1976D2]-> NotifProvider : <<subscribe>> WS
+
+' ============================================
+' FRONTEND → BACKEND (Network Boundary)
+' ============================================
+APIClient -[#FF6F00,bold]-> ExpressServer : <<HTTP/REST>>\nJSON over HTTPS
+SupabaseFrontend -[#43A047,bold]-> SupabaseDB : <<Direct SQL>>\nPostgreSQL Wire Protocol
+NotifProvider -[#43A047,bold]-> SupabaseDB : <<WebSocket>>\nRealtime Subscriptions
+
+' ============================================
+' BACKEND REQUEST FLOW (Middleware Pipeline → Routes → Controllers → Services)
+' ============================================
+
+' Middleware Pipeline (Chain of Responsibility)
+ExpressServer -[#FBC02D,bold]-> Helmet : 1️⃣
+Helmet -[#FBC02D]-> CORS : 2️⃣
+CORS -[#FBC02D]-> RequestLogger : 3️⃣ <<Correlation ID>>
+RequestLogger -[#FBC02D]-> RateLimiter : 4️⃣ <<DDoS Protection>>
+RateLimiter -[#FBC02D]-> AuthMiddleware : 5️⃣ <<JWT>>
+AuthMiddleware -[#FBC02D]-> ValidationMiddleware : 6️⃣ <<Zod>>
+
+' Middleware → Routes
+ValidationMiddleware -[#8E24AA]-> AgentRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> AIRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> EmailRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> InboxRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> EmailConfigRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> EmailTemplateRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> PDFRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> ScraperRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> CronRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> DashboardRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> UserContextRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> NotificationRoutes : <<route>>
+ValidationMiddleware -[#8E24AA]-> SearchRoutes : <<route>>
+
+' Routes → Controllers (Refactored - Dependency Inversion)
+AgentRoutes -[#388E3C,bold]-> AgentController : <<delegate>>\nThin routing layer
+DashboardRoutes -[#388E3C,bold]-> DashboardController : <<delegate>>\nThin routing layer
+
+' Routes → Services (Legacy - Direct coupling, to be refactored)
+EmailRoutes -[#D32F2F,dashed]-> EmailService : ⚠️ Legacy (needs EmailController)
+InboxRoutes -[#D32F2F,dashed]-> InboxService : ⚠️ Legacy (needs InboxController)
+EmailConfigRoutes -[#D32F2F,dashed]-> SupabaseDB : ⚠️ Direct DB (needs EmailConfigService)
+EmailTemplateRoutes -[#D32F2F,dashed]-> AIService : ⚠️ Mixed logic (needs TemplateService)
+AIRoutes -[#D32F2F,dashed]-> AIService : ⚠️ Legacy (needs AIController)
+PDFRoutes -[#D32F2F,dashed]-> PDFService : ⚠️ Legacy (needs PDFController)
+ScraperRoutes -[#D32F2F,dashed]-> ScraperService : ⚠️ Legacy (needs ScraperController)
+CronRoutes -[#D32F2F,dashed]-> CronService : ⚠️ Legacy (needs CronController)
+UserContextRoutes -[#D32F2F,dashed]-> UserContextService : ⚠️ Legacy (needs refactoring)
+NotificationRoutes -[#D32F2F,dashed]-> SupabaseDB : ⚠️ Direct DB (needs NotificationService)
+SearchRoutes -[#D32F2F,dashed]-> SupabaseDB : ⚠️ Direct DB (aggregates multiple tables)
+
+' Controllers → Services (Domain Layer)
+AgentController -[#1976D2,bold]-> AgentOrchestrator : <<orchestrate>>
+DashboardController -[#1976D2]-> BaseService : <<query via inheritance>>
+
+' Controllers → Infrastructure
+DashboardController -[#CE93D8]-> Cache : <<check cache first>>
+AgentController -[#CE93D8]-> Logger : <<structured logging>>
+BaseController -[#CE93D8]-> ErrorClasses : <<throw typed errors>>
+
+' ============================================
+' DOMAIN LAYER (Service Collaboration - Orchestration Pattern)
+' ============================================
+AgentOrchestrator -[#1976D2,bold]-> AIService : <<intent analysis>>
+AgentOrchestrator -[#1976D2]-> EmailService : <<send email tool>>
+AgentOrchestrator -[#1976D2]-> PDFService : <<generate PDF tool>>
+AgentOrchestrator -[#1976D2]-> ScraperService : <<scrape tool>>
+AgentOrchestrator -[#1976D2]-> UserContextService : <<get user context>>
+
+' Service Dependencies (Facade → Adapters)
+AIService -[#1976D2]-> UserContextService : <<enrich prompts>>
+InboxService -[#1976D2]-> AIService : <<analyze emails>>
+ScraperService -[#1976D2]-> AIService : <<extract data>>
+
+' Cron → Orchestrator (Event-Driven)
+CronService -[#FF6F00,bold,dashed]-> AgentOrchestrator : <<trigger scheduled task>>\nAsync execution
+
+' ============================================
+' INFRASTRUCTURE DEPENDENCIES (Services → Utilities)
+' ============================================
+AIService -[#CE93D8]-> Logger : <<log>>
+AIService -[#CE93D8]-> Config : <<read config>>
+AgentOrchestrator -[#CE93D8]-> Logger : <<log>>
+AgentOrchestrator -[#CE93D8]-> Performance : <<measure>>
+EmailService -[#CE93D8]-> Logger : <<log>>
+EmailService -[#CE93D8]-> Encryption : <<decrypt passwords>>
+InboxService -[#CE93D8]-> Logger : <<log>>
+InboxService -[#CE93D8]-> Encryption : <<decrypt>>
+PDFService -[#CE93D8]-> FileStorage : <<save PDFs>>
+UserContextService -[#CE93D8]-> Logger : <<log>>
+ScraperService -[#CE93D8]-> Logger : <<log>>
+CronService -[#CE93D8]-> Logger : <<log>>
+
+' ============================================
+' EXTERNAL INTEGRATIONS (Adapter Pattern)
+' ============================================
+AIService -[#FF6F00,bold]-> GeminiAPI : <<HTTP API>>\nRetry + Circuit Breaker
+EmailService -[#FF6F00]-> Gmail : <<SMTP>>\nNodemailer
+InboxService -[#FF6F00,dashed]-> Gmail : <<IMAP>>\nAsync scanning
+ScraperService -[#FF6F00]-> WebSites : <<HTTP>>\nCheerio + Axios
+
+' ============================================
+' DATA ACCESS LAYER (Repository Pattern via BaseService)
+' ============================================
+BaseService -[#0288D1,bold]-> SupabaseBackend : <<CRUD operations>>\nGeneric Repository
+AIService -[#0288D1]-> SupabaseBackend : <<via BaseService>>
+EmailService -[#0288D1]-> SupabaseBackend : <<via BaseService>>
+InboxService -[#0288D1]-> SupabaseBackend : <<via BaseService>>
+PDFService -[#0288D1]-> SupabaseBackend : <<via BaseService>>
+ScraperService -[#0288D1]-> SupabaseBackend : <<via BaseService>>
+CronService -[#0288D1]-> SupabaseBackend : <<direct access>>
+UserContextService -[#0288D1]-> SupabaseBackend : <<via BaseService>>
+AgentOrchestrator -[#0288D1]-> SupabaseBackend : <<chat history>>
+
+' Database Tables (Supabase Client → PostgreSQL)
+SupabaseBackend -[#4CAF50]-> profiles_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> context_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> imap_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> smtp_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> inbox_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> drafts_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> sent_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> templates_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> attachments_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> pdf_tmpl_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> pdf_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> scrape_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> scrape_hist_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> cron_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> notif_tbl : <<RLS>>
+SupabaseBackend -[#4CAF50]-> chat_tbl : <<RLS>>
+
+' Error Handling Flow
+ErrorHandler -[#D32F2F]-> Logger : <<log errors>>
+ErrorHandler -[#D32F2F]-> ErrorClasses : <<catch typed errors>>
+
+
+legend right
+    **🏗️ SENIOR-LEVEL ARCHITECTURE PATTERNS**
+    
+    |= Icon |= Layer / Concept |
+    | 🎨 PRESENTATION | UI Layer - Pages, Routes (thin, no logic) |
+    | 🎯 APPLICATION | Use Cases - Controllers, Hooks (orchestration) |
+    | 💎 DOMAIN | Business Logic - Services (core rules) |
+    | 🏗️ INFRASTRUCTURE | Technical Details - DB, Logger, Cache |
+    | ☁️ EXTERNAL | Third-party APIs - Gemini, Gmail |
+    
+    |= Arrow Color |= Dependency Type |
+    | <color:#FF6F00><b>orange bold</b></color> | Network boundary (HTTP/WebSocket) |
+    | <color:#1976D2><b>blue bold</b></color> | Domain collaboration (service → service) |
+    | <color:#388E3C><b>green bold</b></color> | Application → Domain (controller → service) |
+    | <color:#FBC02D>yellow</color> | Middleware pipeline (Chain of Responsibility) |
+    | <color:#0288D1>light blue</color> | Data access (Repository pattern) |
+    | <color:#4CAF50>green</color> | Database queries (with RLS) |
+    | <color:#CE93D8>purple</color> | Infrastructure utilities (Logger, Config) |
+    | <color:#D32F2F><b>red</b></color> | Error handling flow |
+    | <color:#D32F2F>red dashed</color> | Legacy coupling (⚠️ needs refactoring) |
+    
+    **🎯 SOLID PRINCIPLES APPLIED:**
+    
+    **S - Single Responsibility:**
+    • Each service has ONE reason to change
+    • AgentOrchestrator: orchestration only
+    • AIService: AI communication only
+    • EmailService: email operations only
+    • UserContextService: user data only
+    
+    **O - Open/Closed:**
+    • BaseController: extend for new controllers
+    • BaseService<T>: extend for new entities (UserContextService ✅)
+    • Middleware: add new without modifying existing
+    • Services: open for extension (but not all use inheritance)
+    
+    **L - Liskov Substitution:**
+    • All controllers can replace BaseController ✅
+    • UserContextService can replace BaseService<T> ✅
+    • Type-safe inheritance (TypeScript generics)
+    
+    **I - Interface Segregation:**
+    • Small, focused interfaces (no god objects)
+    • Services expose only needed methods
+    • Controllers provide minimal surface area
+    • Each service has specific interface
+    
+    **D - Dependency Inversion:**
+    • High-level (AgentOrchestrator) depends on service abstractions
+    • Low-level (Supabase, Nodemailer) implements infrastructure
+    • BaseService abstracts database operations
+    • Services use composition over inheritance when needed
+    
+    **📐 DESIGN PATTERNS USED:**
+    
+    **Creational:**
+    • Singleton (Logger, Cache, Config)
+    • Factory (Error classes, Middleware configurators)
+    
+    **Structural:**
+    • Adapter (AIService wraps Gemini API)
+    • Facade (InboxService hides IMAP complexity)
+    • Decorator (Middleware wraps request/response)
+    • Composite (UI components)
+    
+    **Behavioral:**
+    • Strategy (Cache eviction, Rate limiting)
+    • Chain of Responsibility (Middleware pipeline)
+    • Observer (Supabase Realtime subscriptions)
+    • Mediator/Orchestrator (AgentOrchestrator coordinates services)
+    • Template Method (BaseController defines response flow)
+    
+    **Architectural:**
+    • Clean Architecture (Onion Model - 4 layers)
+    • Repository Pattern (BaseService<T> - used by UserContextService)
+    • Service Layer Pattern (Business logic isolation)
+    • Dependency Injection (Services as singletons)
+    • CQRS-lite (Read/Write separation in controllers)
+    
+    **Note on Repository Pattern:**
+    Currently only UserContextService uses BaseService<T>.
+    Other services use specialized patterns:
+    • AIService → API Client pattern
+    • EmailService → SMTP Client pattern
+    • InboxService → IMAP Client pattern
+    • PDFService → Document Generation pattern
+    • ScraperService → Web Scraping pattern
+    
+    **🔄 CLEAN ARCHITECTURE LAYERS:**
+    
+    **1. Domain (Core) - 💎**
+    • Business rules (AgentOrchestrator, AIService, etc.)
+    • No dependencies on outer layers
+    • Pure TypeScript - no frameworks
+    
+    **2. Application - 🎯**
+    • Use cases (Controllers, Hooks)
+    • Orchestrates domain services
+    • Depends only on Domain
+    
+    **3. Infrastructure - 🏗️**
+    • Technical details (DB, Logger, Cache, Config)
+    • Implements domain interfaces
+    • Depends on Domain (Dependency Inversion)
+    
+    **4. Presentation - 🎨**
+    • UI (Pages, Routes)
+    • Depends on Application
+    • Framework-specific (Next.js, Express)
+    
+    **📊 ARCHITECTURE QUALITY METRICS:**
+    
+    ✅ **Testability:** Services isolated, easy to mock
+    ✅ **Maintainability:** Clear separation, low coupling
+    ✅ **Scalability:** Horizontal scaling ready (stateless)
+    ✅ **Security:** RLS, JWT, encryption, rate limiting
+    ✅ **Observability:** Structured logging, correlation IDs
+    ✅ **Performance:** Caching, connection pooling
+    ✅ **Reliability:** Error handling, retry logic
+    ✅ **Extensibility:** Open/Closed principle
+    
+    **🚀 FUTURE IMPROVEMENTS:**
+    • Migrate all routes to controller pattern
+    • Add unit tests (Jest + mocking)
+    • Add integration tests (Supertest)
+    • Redis cache for distributed systems
+    • Event-driven architecture (RabbitMQ/SQS)
+    • Microservices decomposition (by domain)
+    • GraphQL API layer
+    • OpenAPI/Swagger documentation
+endlegend
+
+@enduml

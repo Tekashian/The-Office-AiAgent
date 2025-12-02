@@ -1,339 +1,497 @@
+@startuml Office-AI-Agent-Executive-Expanded
+title The Office AI Agent - Complete Architecture (Senior Level - Clean & Detailed)
 
-@startuml Office-AI-Agent-Component-Diagram
-title The Office AI Agent - Component Diagram
+' ============================================
+' EXECUTIVE VIEW - EXPANDED VERSION
+' Wszystkie komponenty pokazane czytelnie
+' Większy diagram z detalami jak original
+' Zachowane senior-level clean layout
+' ============================================
+
+!define LIGHTBLUE #E3F2FD
+!define LIGHTGREEN #E8F5E9
+!define LIGHTPURPLE #F3E5F5
+!define LIGHTYELLOW #FFFDE7
+!define LIGHTORANGE #FFF3E0
+
 skinparam componentStyle rectangle
-skinparam BackgroundColor #FFFFFF
+skinparam BackgroundColor #FAFAFA
 skinparam shadowing false
 skinparam RoundCorner 10
-skinparam ArrowColor #454545
-skinparam defaultTextAlignment center
-skinparam packageBorderColor #888888
-skinparam packageBackgroundColor #F5F5F5
-skinparam componentBorderColor #333333
-skinparam componentBackgroundColor #FFFFFF
-skinparam databaseBackgroundColor #E0F7FA
-skinparam databaseBorderColor #00838F
-skinparam cloudBackgroundColor #FFF3E0
-skinparam cloudBorderColor #FF9800
-skinparam noteBackgroundColor #FFF9C4
-skinparam noteBorderColor #FBC02D
-
-' Kolory strzałek
-skinparam ArrowColor #616161
 skinparam ArrowThickness 2
+skinparam Padding 20
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 80
+skinparam packageBorderThickness 2
 
-' Ikony emoji dla dziecięcej czytelności
-!define FRONTEND_ICON 🖥️
-!define BACKEND_ICON 🛠️
-!define DB_ICON 🗄️
-!define CLOUD_ICON ☁️
+left to right direction
 
 
-' External Systems
-cloud "CLOUD_ICON External Services" as ExtCloud #FFECB3 {
-    component "🤖 Gemini AI API" as GeminiAPI #FFE0B2
-    component "📧 Gmail SMTP/IMAP" as Gmail #FFE0B2
-    component "🌐 External Websites" as WebSites #FFE0B2
+' ============================================
+' SIMPLIFIED 3-TIER ARCHITECTURE
+' ============================================
+
+package "☁️ EXTERNAL APIs" as External LIGHTORANGE {
+  [🤖 Gemini AI] as Gemini
+  [📧 Gmail API] as Gmail
+  [🌐 Web Scraping] as Web
 }
 
-
-' Frontend Layer
-package "FRONTEND_ICON Frontend (Next.js 15)" #E3F2FD {
-    package "Page Routes" as Pages #E1F5FE {
-        component "💬 Agent Chat Page" as AgentPage #B3E5FC
-        component "📥 Email Page" as EmailPage #B3E5FC
-        component "📄 PDF Generator Page" as PDFPage #B3E5FC
-        component "🔎 Web Scraper Page" as ScraperPage #B3E5FC
-        component "⏰ Cron Jobs Page" as CronPage #B3E5FC
-        component "📬 Email Inbox Page" as InboxPage #B3E5FC
-        component "⚙️ Settings Page" as SettingsPage #B3E5FC
-        component "🔔 Notifications Page" as NotifPage #B3E5FC
-    }
-    
-    package "UI Components" as UIComponents #E1F5FE {
-        component "🧩 Shared Components" as SharedUI #B3E5FC
-        component "🔔 Notification Components" as NotifComponents #B3E5FC
-    }
-    
-    package "Custom Hooks" as Hooks #E1F5FE {
-        component "🪝 useNotifications" as useNotifications #B3E5FC
-        component "🪝 Other Hooks" as OtherHooks #B3E5FC
-    }
-    
-    component "🔗 API Client (Axios)" as APIClient #90CAF9
-    component "🗄️ Supabase Client" as SupabaseFrontend #90CAF9
-    component "🔒 Authentication" as AuthFrontend #90CAF9
-    component "🔔 Notification Provider" as NotifProvider #90CAF9
-}
-
-
-' Backend Layer
-package "BACKEND_ICON Backend (Node.js + Express + TypeScript)" #FFF8E1 {
-    component "🚦 Express Server" as ExpressServer #FFE082
-    
-    package "Middleware Layer" #FFFDE7 {
-        component "🛡️ Auth Middleware" as AuthMiddleware #FFD54F
-        component "📤 Upload Middleware" as UploadMiddleware #FFD54F
-        component "❗ Error Handler" as ErrorHandler #FFD54F
-        component "🔍 Request Logger" as RequestLogger #FFD54F
-        component "⏱️ Rate Limiter" as RateLimiter #FFD54F
-        component "✅ Validation" as ValidationMiddleware #FFD54F
-    }
-    
-    package "API Routes" #FFFDE7 {
-        component "🤖 Agent Routes" as AgentRoutes #FFF9C4
-        component "🧠 AI Routes" as AIRoutes #FFF9C4
-        component "📧 Email Routes" as EmailRoutes #FFF9C4
-        component "🔧 Email Config Routes" as EmailConfigRoutes #FFF9C4
-        component "📬 Email Inbox Routes" as InboxRoutes #FFF9C4
-        component "📑 Email Template Routes" as TemplateRoutes #FFF9C4
-        component "📄 PDF Routes" as PDFRoutes #FFF9C4
-        component "🔎 Scraper Routes" as ScraperRoutes #FFF9C4
-        component "⏰ Cron Routes" as CronRoutes #FFF9C4
-        component "📊 Dashboard Routes" as DashboardRoutes #FFF9C4
-        component "👤 User Context Routes" as UserContextRoutes #FFF9C4
-        component "🔔 Notification Routes" as NotificationRoutes #FFF9C4
-        component "🔍 Search Routes" as SearchRoutes #FFF9C4
-    }
-    
-    package "Controllers Layer" #E1BEE7 {
-        component "🎮 Base Controller" as BaseController #CE93D8
-        component "🤖 Agent Controller" as AgentController #CE93D8
-        component "📊 Dashboard Controller" as DashboardController #CE93D8
-    }
-    
-    package "Services Layer" #E8F5E9 {
-        component "🎯 Base Service" as BaseService #81C784
-        component "🤖 Agent Orchestrator" as AgentOrchestrator #A5D6A7
-        component "🧠 AI Service" as AIService #A5D6A7
-        component "📧 Email Service" as EmailService #A5D6A7
-        component "📬 Email Inbox Service" as InboxService #A5D6A7
-        component "📄 PDF Service" as PDFService #A5D6A7
-        component "🔎 Scraper Service" as ScraperService #A5D6A7
-        component "⏰ Cron Service" as CronService #A5D6A7
-        component "👤 User Context Service" as UserContextService #A5D6A7
-    }
-    
-    note right of AgentOrchestrator : Interprets user intent\nExecutes tools\nOrchestrates Cron tasks\nLanguage detection
-    note right of AIService : Gemini API integration\nUser context management\nLanguage-aware responses
-    note right of InboxService : IMAP inbox scanning\nAI email analysis\nDraft generation
-    note right of ScraperService : Web scraping\nAI-powered extraction
-    note right of CronService : Node-cron wrapper\nTriggers AgentOrchestrator
-    note right of UserContextService : User profile formatting\nAI context generation\nExtends BaseService
-    
-    package "Utilities" #F3E5F5 {
-        component "🔐 Encryption Utils" as Encryption #CE93D8
-        component "📁 Init Directories" as InitDirs #CE93D8
-        component "🧪 Validate Env" as ValidateEnv #CE93D8
-        component "💾 File Storage" as FileStorage #CE93D8
-        component "📋 Logger Service" as Logger #CE93D8
-        component "🚀 Cache Service" as Cache #CE93D8
-        component "❌ Custom Errors" as ErrorClasses #CE93D8
-        component "⚡ Performance Utils" as Performance #CE93D8
-    }
-    
-    package "Configuration" #B2DFDB {
-        component "⚙️ Centralized Config" as Config #80CBC4
-    }
-    
-    component "🗄️ Supabase Admin Client" as SupabaseBackend #B0BEC5
-}
-
-
-' Database Layer
-database "DB_ICON Supabase PostgreSQL" as SupabaseDB #E0F7FA {
-    package "Core Tables" #B2EBF2 {
-        component "👤 user_profiles" as profiles_tbl #80DEEA
-        component "💬 chat_messages" as chat_tbl #80DEEA
-    }
-    
-    package "Email System" #B2EBF2 {
-        component "🔑 user_imap_configs" as imap_tbl #80DEEA
-        component "🔐 user_email_configs" as smtp_tbl #80DEEA
-        component "📥 emails_inbox" as inbox_tbl #80DEEA
-        component "📝 ai_email_drafts" as drafts_tbl #80DEEA
-        component "📤 emails_sent" as sent_tbl #80DEEA
-        component "📑 email_templates" as templates_tbl #80DEEA
-    }
-    
-    package "Document System" #B2EBF2 {
-        component "📄 pdf_templates" as pdf_tmpl_tbl #80DEEA
-        component "📂 pdf_files" as pdf_tbl #80DEEA
-    }
-    
-    package "Automation" #B2EBF2 {
-        component "🕸️ scrape_jobs" as scrape_tbl #80DEEA
-        component "📜 scrape_history" as scrape_hist_tbl #80DEEA
-        component "⏰ cron_jobs" as cron_tbl #80DEEA
-    }
-    
-    package "User Management" #B2EBF2 {
-        component "🧠 user_context" as context_tbl #80DEEA
-        component "🔔 notifications" as notif_tbl #80DEEA
-    }
-}
-
-
-' ============ CONNECTIONS (UPROSZCZONE I KOLOROWE) ============
-
-' Frontend Architecture (Senior-Level Organization)
-Pages -[#1976D2]-> Hooks : Uses
-Pages -[#1976D2]-> UIComponents : Renders
-NotifPage -[#1976D2,bold]-> useNotifications : State Management
-NotifPage -[#1976D2]-> NotifComponents : UI Components
-useNotifications -[#1976D2]-> APIClient : API Calls
-NotifComponents -[#1976D2]-> SharedUI : Shared UI
-
-' Frontend to Backend
-APIClient -[#1976D2,bold]-> ExpressServer : HTTP/REST
-UIComponents -[#43A047]-> SupabaseFrontend : Direct DB
-Pages -[#1976D2]-> AuthFrontend : Auth
-NotifProvider -[#43A047]-> SupabaseFrontend : Subscribe
-
-' Backend Flow (Middleware Chain)
-ExpressServer -[#FBC02D,bold]-> RequestLogger : Log
-RequestLogger -[#FBC02D]-> RateLimiter : Limit
-RateLimiter -[#FBC02D]-> AuthMiddleware : Auth
-AuthMiddleware -[#FBC02D]-> AgentRoutes
-AuthMiddleware -[#FBC02D]-> AIRoutes
-AuthMiddleware -[#FBC02D]-> EmailRoutes
-AuthMiddleware -[#FBC02D]-> EmailConfigRoutes
-AuthMiddleware -[#FBC02D]-> InboxRoutes
-AuthMiddleware -[#FBC02D]-> TemplateRoutes
-ExpressServer -[#FBC02D]-> UploadMiddleware : Files
-AuthMiddleware -[#FBC02D]-> PDFRoutes
-AuthMiddleware -[#FBC02D]-> ScraperRoutes
-AuthMiddleware -[#FBC02D]-> CronRoutes
-AuthMiddleware -[#FBC02D]-> DashboardRoutes
-AuthMiddleware -[#FBC02D]-> UserContextRoutes
-AuthMiddleware -[#FBC02D]-> NotificationRoutes
-AuthMiddleware -[#FBC02D]-> SearchRoutes
-
-' Routes to Controllers
-AgentRoutes -[#8E24AA,bold]-> AgentController : Delegate
-DashboardRoutes -[#8E24AA,bold]-> DashboardController : Delegate
-
-' Controllers to Services
-AgentController -[#388E3C,bold]-> AgentOrchestrator : Process
-DashboardController -[#388E3C]-> Cache : Check
-DashboardController -[#388E3C]-> SupabaseBackend : Query
-
-' Routes to Services (direct - legacy routes)
-AIRoutes -[#388E3C]-> AIService : AI
-EmailRoutes -[#388E3C]-> EmailService : Email
-EmailConfigRoutes -[#388E3C]-> SupabaseBackend : Config
-InboxRoutes -[#388E3C]-> InboxService : Inbox
-TemplateRoutes -[#388E3C]-> AIService : Template
-PDFRoutes -[#388E3C,dashed]-> PDFService : PDF (async)
-PDFRoutes -[#388E3C]-> AIService : AI
-ScraperRoutes -[#388E3C,dashed]-> ScraperService : Scrape (async)
-CronRoutes -[#388E3C]-> CronService : Jobs
-
-' Agent Orchestrator Orchestration
-AgentOrchestrator -[#8E24AA,bold]-> AIService : Intent
-AgentOrchestrator -[#8E24AA]-> EmailService : Email
-AgentOrchestrator -[#8E24AA]-> PDFService : PDF
-AgentOrchestrator -[#8E24AA]-> ScraperService : Scrape
-
-' Cron Service Flow (CORRECTED)
-CronService -[#8E24AA,dashed,bold]-> AgentOrchestrator : Trigger⏰\n(async)
-
-' Services to External & Database
-AIService -[#FF9800,bold]-> GeminiAPI : API
-AIService -[#00838F]-> UserContextService : Context
-UserContextService -[#00838F]-> SupabaseBackend : Profile
-EmailService -[#FF9800]-> Gmail : SMTP
-InboxService -[#FF9800,dashed]-> Gmail : IMAP (async)
-InboxService -[#00838F]-> AIService : Analyze
-ScraperService -[#FF9800]-> WebSites : HTTP
-ScraperService -[#00838F]-> AIService : Extract
-
-' All Services to Database (grupowanie)
-AgentOrchestrator -[#00838F,bold]-> SupabaseBackend
-EmailService -[#00838F]-> SupabaseBackend
-InboxService -[#00838F]-> SupabaseBackend
-PDFService -[#00838F]-> SupabaseBackend
-ScraperService -[#00838F]-> SupabaseBackend
-CronService -[#00838F]-> SupabaseBackend
-
-' Services use utilities
-AgentOrchestrator -[#CE93D8]-> Logger : Log
-AIService -[#CE93D8]-> Logger : Log
-AIService -[#CE93D8]-> Config : Settings
-EmailService -[#CE93D8]-> Logger : Log
-InboxService -[#CE93D8]-> Logger : Log
-UserContextService -[#CE93D8]-> Logger : Log
-DashboardController -[#CE93D8]-> Cache : Cache
-BaseController -[#CE93D8]-> ErrorClasses : Errors
-
-' Database Layer
-SupabaseBackend -[#0288D1,bold]-> profiles_tbl
-SupabaseBackend -[#0288D1]-> chat_tbl
-SupabaseBackend -[#0288D1]-> imap_tbl
-SupabaseBackend -[#0288D1]-> smtp_tbl
-SupabaseBackend -[#0288D1]-> inbox_tbl
-SupabaseBackend -[#0288D1]-> drafts_tbl
-SupabaseBackend -[#0288D1]-> sent_tbl
-SupabaseBackend -[#0288D1]-> templates_tbl
-SupabaseBackend -[#0288D1]-> pdf_tmpl_tbl
-SupabaseBackend -[#0288D1]-> pdf_tbl
-SupabaseBackend -[#0288D1]-> scrape_tbl
-SupabaseBackend -[#0288D1]-> cron_tbl
-SupabaseBackend -[#0288D1]-> notif_tbl
-
-' Utilities
-EmailService -[#CE93D8]-> Encryption : Decrypt
-InboxService -[#CE93D8]-> Encryption : Decrypt
-ExpressServer -[#CE93D8]-> InitDirs : Init
-ExpressServer -[#CE93D8]-> ValidateEnv : Config
-UploadMiddleware -[#CE93D8]-> FileStorage : Store
-PDFService -[#CE93D8]-> FileStorage : Save
-
-' Error Handling
-ExpressServer -[#D32F2F,bold]-> ErrorHandler : Errors
-
-
-legend right
-    |= Symbol / Line |= Meaning |
-    | 🖥️ | Frontend (Next.js, React) |
-    | 🛠️ | Backend (Node.js, Express) |
-    | 🗄️ | Database (Supabase/PostgreSQL) |
-    | ☁️ | External Service (AI, Gmail, Web) |
-    | 🪝 | Custom React Hooks (Business Logic) |
-    | 🎮 | Controllers (Request handling layer) |
-    | 🎯 | Base Classes (Inheritance hierarchy) |
-    | Package | Logical grouping |
-    | --> | Dependency/Call direction |
-    | <color:#1976D2><b>niebieska gruba</b></color> | Frontend → Backend/API komunikacja |
-    | <color:#43A047>zielona</color> | Frontend → Supabase (bezpośredni dostęp) |
-    | <color:#FBC02D><b>żółta gruba</b></color> | Backend: middleware chain (logging, auth, rate limiting) |
-    | <color:#8E24AA><b>fioletowa gruba</b></color> | Routes → Controllers (new architecture) |
-    | <color:#388E3C><b>ciemnozielona gruba</b></color> | Controllers/Routes → Services (business logic) |
-    | <color:#FF9800><b>pomarańczowa gruba</b></color> | Połączenia z zewnętrznymi systemami |
-    | <color:#00838F><b>turkusowa gruba</b></color> | Połączenia z bazą danych |
-    | <color:#0288D1><b>niebieska jasna</b></color> | Backend → tabele bazy danych |
-    | <color:#CE93D8>fioletowa jasna</color> | Services → Utilities (logger, cache, config) |
-    | <color:#D32F2F><b>czerwona gruba</b></color> | Obsługa błędów |
-    | ---> (dashed) | Asynchroniczne operacje (queue-based/long-running) |
+package "🎨 FRONTEND - Presentation Layer\n(Next.js 14 + React + TypeScript)" as Frontend LIGHTBLUE {
   
-    **Key Features:**
-    • AI-powered office automation with language detection
-    • Dual email system (IMAP receiving + SMTP sending)
-    • PDF generation with templates + file storage
-    • Web scraping with AI extraction (async)
-    • Scheduled tasks via Agent Orchestrator
-    • Real-time notifications with Supabase
-    • Multi-user support with RLS
-    • **Senior-level Architecture:**
-      - Controller layer for request handling
-      - BaseController/BaseService patterns
-      - Structured logging with Logger service
-      - In-memory caching with Cache service
-      - Request tracing with correlation IDs
-      - Rate limiting (global + per-route)
-      - Centralized configuration management
-      - Custom error hierarchy
-      - Performance monitoring
+  package "📱 Pages (11 total)" as FrontendPages {
+    component "📊 Dashboard" as PageDash
+    component "🤖 Agent Chat" as PageAgent
+    component "📧 Email" as PageEmail
+    component "📬 Email Inbox" as PageInbox
+    component "📄 PDF" as PagePDF
+    component "🔎 Scraper" as PageScraper
+    component "⏰ Tasks/Cron" as PageTasks
+    component "🔔 Notifications" as PageNotif
+    component "⚙️ Settings" as PageSettings
+    component "🔐 Auth" as PageAuth
+    component "🏠 Home" as PageHome
+  }
+  
+  package "🪝 Custom Hooks (6 total)" as FrontendHooks {
+    component "useAgent" as HookAgent
+    component "useEmail" as HookEmail
+    component "usePDF" as HookPDF
+    component "useScraper" as HookScraper
+    component "useTasks" as HookTasks
+    component "useNotifications" as HookNotif
+  }
+  
+  package "🧩 UI Components" as UIComponents {
+    component "Design System\n(shadcn/ui)" as DesignSystem
+    component "Notification\nComponents" as NotifUI
+  }
+  
+  package "🔄 Context Providers" as Contexts {
+    component "NotificationProvider" as NotifProvider
+    component "PDFRefreshProvider" as PDFProvider
+  }
+  
+  component "🌐 API Client\n(Axios + Interceptors)" as APIClient
+  component "🗄️ Supabase Client\n(Direct DB)" as SupabaseFrontend
+}
+
+package "🎯 BACKEND - Application Layer\n(Express + Node.js + TypeScript)" as Backend LIGHTPURPLE {
+  
+  package "🛡️ Middleware Pipeline" as Middleware {
+    component "1️⃣ Helmet (Security)" as Helmet
+    component "2️⃣ CORS" as CORS
+    component "3️⃣ Request Logger" as ReqLogger
+    component "4️⃣ Rate Limiter" as RateLimit
+    component "5️⃣ Auth (JWT)" as AuthMW
+    component "6️⃣ Validation (Zod)" as Validation
+    component "7️⃣ Upload (Multer)" as Upload
+    component "⚡ asyncHandler" as AsyncHandler
+    component "9️⃣ Error Handler" as ErrorHandler
+    
+    note right of Helmet
+      **Helmet - Security Headers**
+      Dodaje 13 nagłówków bezpieczeństwa:
+      • X-Content-Type-Options: nosniff
+      • X-Frame-Options: DENY
+      • Strict-Transport-Security
+      • X-XSS-Protection
+      Chroni przed: XSS, Clickjacking, MIME sniffing
+    end note
+    
+    note right of CORS
+      **CORS - Cross-Origin Resource Sharing**
+      Kontroluje dostęp między domenami:
+      • Zezwala: localhost:3000 → localhost:3001
+      • Blokuje: inne domeny
+      • Headers: Access-Control-Allow-Origin
+      Zabezpiecza przed nieautoryzowanymi requestami
+    end note
+    
+    note left of ErrorHandler
+      **Global Error Handler**
+      Ostatni middleware w pipeline
+      Łapie wszystkie błędy z:
+      • Routes (404, 500)
+      • Controllers (Business logic errors)
+      • Services (External API errors)
+      • Validation (400 Bad Request)
+      Zwraca: Formatted JSON error response
+    end note
+  }
+  
+  package "📍 REST Routes (13 total)" as Routes {
+    component "/api/agent" as RouteAgent
+    component "/api/ai" as RouteAI
+    component "/api/email" as RouteEmail
+    component "/api/email-inbox" as RouteInbox
+    component "/api/email-config" as RouteEmailConfig
+    component "/api/email-templates" as RouteEmailTpl
+    component "/api/pdf" as RoutePDF
+    component "/api/scraper" as RouteScraper
+    component "/api/cron" as RouteCron
+    component "/api/dashboard" as RouteDash
+    component "/api/user-context" as RouteUserCtx
+    component "/api/notifications" as RouteNotif
+    component "/api/search" as RouteSearch
+  }
+  
+  package "🎯 Controllers (2/13)" as Controllers {
+    component "BaseController\n(Abstract)" as BaseCtrl
+    component "AgentController\nextends Base" as AgentCtrl
+    component "DashboardController\nextends Base" as DashCtrl
+    
+    note right of AgentCtrl
+      ⚠️ **ARCHITECTURAL DEBT**
+      Only 2/13 routes use controllers
+      11 routes have inline handlers (~3,736 lines)
+      
+      Priority Refactoring:
+      🔴 EmailController (280 lines)
+      🔴 PDFController (597 lines)
+      🟡 ScraperController (499 lines)
+    end note
+  }
+}
+
+package "💎 DOMAIN - Business Logic Layer\n(Pure Business Rules)" as Domain LIGHTGREEN {
+  
+  component "💎 BaseService<T>\n(Generic Repository)" as BaseService
+  
+  note right of BaseService
+    **Repository Pattern (SOLID)**
+    • Generyczne CRUD operacje
+    • Type-safe: BaseService<T>
+    • DI friendly (constructor injection)
+    
+    **ONLY 1/7 services extends Base:**
+    ✅ UserContextService
+    ❌ 6 innych - Standalone
+    
+    **Powód:** Specjalizowane wzorce
+    (API Client, SMTP, IMAP, File Storage)
+  end note
+  
+  package "🤖 Orchestration" as Orchestration {
+    component "AgentOrchestrator\n(Mediator Pattern)" as Orchestrator
+    
+    note left of Orchestrator
+      **Design Pattern: Mediator**
+      • Koordynuje 5 services
+      • Reduces coupling
+      • Single point of orchestration
+      
+      **Coordinates:**
+      AI + Email + PDF + Scraper + Cron
+    end note
+  }
+  
+  package "⚡ Core Services (7 total)" as CoreServices {
+    component "🧠 AIService\n(Standalone)" as AIService
+    component "📧 EmailService\n(Standalone)" as EmailService
+    component "📬 InboxService\n(Standalone)" as InboxService
+    component "📄 PDFService\n(Standalone)" as PDFService
+    component "🔎 ScraperService\n(Standalone)" as ScraperService
+    component "⏰ CronService\n(Standalone)" as CronService
+    component "👤 UserContextService\n✅ extends BaseService" as UserContextService
+  }
+}
+
+package "🏗️ INFRASTRUCTURE - Technical Layer\n(Cross-Cutting Concerns)" as Infra LIGHTYELLOW {
+  
+  package "🔧 Utilities" as Utils {
+    component "📋 Logger\n(Winston Singleton)" as Logger
+    component "🚀 Cache\n(In-Memory LRU)" as Cache
+    component "🔧 Config\n(Type-Safe Singleton)" as Config
+    component "🔐 Encryption\n(AES-256-GCM)" as Encryption
+    component "❌ Error Classes\n(AppError Hierarchy)" as ErrorClasses
+    component "⚡ Performance Monitor" as Performance
+    component "💾 File Storage\n(Local + Cleanup)" as FileStorage
+  }
+  
+  package "🗄️ Data Access" as DataAccess {
+    component "Supabase Admin Client\n(PostgreSQL SDK)" as SupabaseBackend
+    
+    note right of SupabaseBackend
+      **Database Client:**
+      • PostgreSQL 15 (Supabase)
+      • Connection pooling
+      • Admin privileges
+      • Type-safe queries
+    end note
+  }
+}
+
+database "🗄️ DATABASE - PostgreSQL 15\n(Supabase Cloud + Row Level Security)" as DB {
+  
+  package "👤 User & Auth" as UserTables {
+    component "[user_profiles]" as ProfilesTbl
+    component "[user_context]" as ContextTbl
+  }
+  
+  package "📧 Email Domain" as EmailTables {
+    component "[user_imap_configs]" as IMAPTbl
+    component "[user_smtp_configs]" as SMTPTbl
+    component "[emails_inbox]" as InboxTbl
+    component "[email_drafts]" as DraftsTbl
+    component "[email_templates]" as TemplatesTbl
+  }
+  
+  package "📄 PDF & Files" as PDFTables {
+    component "[pdf_files]" as PDFTbl
+    component "[pdf_templates]" as PDFTemplatesTbl
+  }
+  
+  package "🔎 Scraper Domain" as ScraperTables {
+    component "[scrape_jobs]" as ScraperJobsTbl
+    component "[scrape_history]" as ScraperHistoryTbl
+  }
+  
+  package "⏰ Cron & Notifications" as CronTables {
+    component "[cron_jobs]" as CronJobsTbl
+    component "[cron_history]" as CronHistoryTbl
+    component "[notifications]" as NotificationsTbl
+  }
+  
+  package "🔐 Security" as SecurityTables {
+    component "[auth.users]\n(Supabase Auth)" as AuthUsersTbl
+  }
+}
+
+
+' ============================================
+' CLEAN CONNECTIONS (Senior Level - Detailed but Clear)
+' ============================================
+
+' === EXTERNAL → DOMAIN (External APIs - Orange) ===
+Gemini -[#FF6F00,bold]right-> AIService : "Gemini 2.0 API"
+Gmail -[#FF6F00,bold]right-> EmailService : "SMTP send"
+Gmail -[#FF6F00,bold]right-> InboxService : "IMAP fetch"
+Web -[#FF6F00,bold]right-> ScraperService : "HTTP scrape"
+
+' === FRONTEND INTERNAL FLOW (Blue - Internal) ===
+' Pages use Hooks
+PageDash -[#1976D2]down-> HookAgent
+PageAgent -[#1976D2]down-> HookAgent
+PageEmail -[#1976D2]down-> HookEmail
+PagePDF -[#1976D2]down-> HookPDF
+PageScraper -[#1976D2]down-> HookScraper
+PageTasks -[#1976D2]down-> HookTasks
+PageNotif -[#1976D2]down-> HookNotif
+
+' Hooks use API Client
+HookAgent -[#1976D2]down-> APIClient
+HookEmail -[#1976D2]down-> APIClient
+HookPDF -[#1976D2]down-> APIClient
+HookScraper -[#1976D2]down-> APIClient
+HookTasks -[#1976D2]down-> APIClient
+HookNotif -[#1976D2]down-> APIClient
+
+' Context Providers used by Pages
+NotifProvider -[hidden]down-> PageNotif
+PDFProvider -[hidden]down-> PagePDF
+
+' === FRONTEND → BACKEND (Orange Bold - Cross-boundary) ===
+APIClient -[#FF6F00,bold]right-> Helmet : "<<HTTP/REST>>\nJSON over HTTPS"
+
+' === BACKEND MIDDLEWARE PIPELINE (Yellow - Sequential) ===
+Helmet -[#FBC02D,bold]down-> CORS : "1️⃣ Security Headers"
+CORS -[#FBC02D]down-> ReqLogger : "2️⃣ CORS Policy"
+ReqLogger -[#FBC02D]down-> RateLimit : "3️⃣ Correlation ID"
+RateLimit -[#FBC02D]down-> AuthMW : "4️⃣ DDoS Protection"
+AuthMW -[#FBC02D]down-> Validation : "5️⃣ JWT Verify"
+Validation -[#FBC02D]down-> Upload : "6️⃣ Schema Validation"
+Upload -[#FBC02D]down-> AsyncHandler : "7️⃣ File Upload"
+
+' === MIDDLEWARE → ROUTES (Purple - Routing) ===
+AsyncHandler -[#7B1FA2]right-> RouteAgent
+AsyncHandler -[#7B1FA2]right-> RouteEmail
+AsyncHandler -[#7B1FA2]right-> RoutePDF
+AsyncHandler -[#7B1FA2]right-> RouteScraper
+AsyncHandler -[#7B1FA2]right-> RouteCron
+AsyncHandler -[#7B1FA2]right-> RouteDash
+AsyncHandler -[#7B1FA2]right-> RouteAI
+AsyncHandler -[#7B1FA2]right-> RouteInbox
+AsyncHandler -[#7B1FA2]right-> RouteUserCtx
+
+' === ROUTES → CONTROLLERS (Green - Clean Architecture) ===
+RouteAgent -[#43A047,bold]down-> AgentCtrl : "✅ Clean Architecture"
+RouteDash -[#43A047,bold]down-> DashCtrl : "✅ Proper Layer"
+
+' === ROUTES → SERVICES (Red Dashed - Tech Debt) ===
+RouteEmail -[#D32F2F,dashed,thickness=2]right-> EmailService : "⚠️ skips controller"
+RoutePDF -[#D32F2F,dashed,thickness=2]right-> PDFService : "⚠️ tech debt"
+RouteScraper -[#D32F2F,dashed,thickness=2]right-> ScraperService : "⚠️ inline handler"
+RouteCron -[#D32F2F,dashed,thickness=2]right-> CronService : "⚠️ needs refactor"
+RouteAI -[#D32F2F,dashed,thickness=2]right-> AIService : "⚠️ direct coupling"
+RouteInbox -[#D32F2F,dashed,thickness=2]right-> InboxService : "⚠️ no controller"
+RouteUserCtx -[#D32F2F,dashed,thickness=2]right-> UserContextService : "⚠️ bypass"
+
+' === ERROR HANDLER → ROUTES (Red - Catches All Errors) ===
+ErrorHandler -[#D32F2F,bold]up-> RouteAgent : "<<catch>> 500/404"
+ErrorHandler -[#D32F2F,bold]up-> RouteEmail : "<<catch>> errors"
+ErrorHandler -[#D32F2F,bold]up-> RoutePDF : "<<catch>> errors"
+ErrorHandler -[#D32F2F,bold]up-> RouteScraper : "<<catch>> errors"
+ErrorHandler -[#D32F2F,bold]up-> RouteCron : "<<catch>> errors"
+ErrorHandler -[#D32F2F,bold]up-> RouteDash : "<<catch>> errors"
+ErrorHandler -[#D32F2F,bold]up-> RouteAI : "<<catch>> errors"
+ErrorHandler -[#D32F2F,bold]up-> RouteInbox : "<<catch>> errors"
+
+' === ERROR HANDLER → CONTROLLERS (Catches Controller Errors) ===
+ErrorHandler -[#D32F2F]up-> AgentCtrl : "<<catch>>"
+ErrorHandler -[#D32F2F]up-> DashCtrl : "<<catch>>"
+
+' === ASYNCHANDLER → ERROR HANDLER (Forwards Errors) ===
+AsyncHandler -[#D32F2F,dashed]down-> ErrorHandler : "<<forward>> try/catch"
+
+' === CONTROLLERS → ORCHESTRATOR (Purple - Orchestration) ===
+AgentCtrl -[#7B1FA2,bold]right-> Orchestrator : "<<delegate>> Mediator Pattern"
+DashCtrl -[#7B1FA2]right-> UserContextService : "<<query>> Stats"
+
+' === ORCHESTRATOR → SERVICES (Purple - Mediator Pattern) ===
+Orchestrator -[#7B1FA2]down-> AIService : "<<coordinate>> AI"
+Orchestrator -[#7B1FA2]down-> EmailService : "<<coordinate>> Email"
+Orchestrator -[#7B1FA2]down-> PDFService : "<<coordinate>> PDF"
+Orchestrator -[#7B1FA2]down-> ScraperService : "<<coordinate>> Scrape"
+Orchestrator -[#7B1FA2]down-> CronService : "<<coordinate>> Schedule"
+
+' === SERVICES → INFRASTRUCTURE (Gray - Dependencies) ===
+AIService -[#616161]right-> Logger : "<<log>>"
+AIService -[#616161]right-> Config : "<<config>>"
+AIService -[#616161]right-> Cache : "<<cache>>"
+
+EmailService -[#616161]right-> Logger : "<<log>>"
+EmailService -[#616161]right-> Encryption : "<<encrypt>>"
+EmailService -[#616161]right-> Config : "<<config>>"
+
+PDFService -[#616161]right-> Logger : "<<log>>"
+PDFService -[#616161]right-> FileStorage : "<<save>>"
+PDFService -[#616161]right-> Config : "<<config>>"
+
+ScraperService -[#616161]right-> Logger : "<<log>>"
+ScraperService -[#616161]right-> Cache : "<<cache>>"
+
+CronService -[#616161]right-> Logger : "<<log>>"
+
+InboxService -[#616161]right-> Logger : "<<log>>"
+InboxService -[#616161]right-> Encryption : "<<decrypt>>"
+
+UserContextService -[#43A047,bold]up-> BaseService : "<<extends>>\nRepository Pattern"
+UserContextService -[#616161]right-> Logger : "<<log>>"
+
+' === INFRASTRUCTURE → DATABASE (Green Bold - Data Access) ===
+SupabaseBackend -[#43A047,bold]right-> ProfilesTbl : "SELECT/INSERT"
+SupabaseBackend -[#43A047,bold]right-> ContextTbl : "CRUD"
+SupabaseBackend -[#43A047,bold]right-> IMAPTbl : "credentials"
+SupabaseBackend -[#43A047,bold]right-> SMTPTbl : "credentials"
+SupabaseBackend -[#43A047,bold]right-> InboxTbl : "emails"
+SupabaseBackend -[#43A047,bold]right-> PDFTbl : "files"
+SupabaseBackend -[#43A047,bold]right-> ScraperJobsTbl : "jobs"
+SupabaseBackend -[#43A047,bold]right-> CronJobsTbl : "schedules"
+SupabaseBackend -[#43A047,bold]right-> NotificationsTbl : "notifications"
+
+' === SERVICES → DATABASE (Via Supabase) ===
+AIService -[hidden]right-> SupabaseBackend
+EmailService -[hidden]right-> SupabaseBackend
+PDFService -[hidden]right-> SupabaseBackend
+ScraperService -[hidden]right-> SupabaseBackend
+CronService -[hidden]right-> SupabaseBackend
+InboxService -[hidden]right-> SupabaseBackend
+UserContextService -[hidden]right-> SupabaseBackend
+
+
+' ============================================
+' LAYOUT HINTS (Hidden lines for spacing)
+' ============================================
+External -[hidden]right-> Frontend
+Frontend -[hidden]right-> Backend
+Backend -[hidden]right-> Domain
+Domain -[hidden]right-> Infra
+Infra -[hidden]right-> DB
+
+' Vertical spacing
+Gemini -[hidden]down-> Gmail
+PageDash -[hidden]down-> PageAgent
+RouteAgent -[hidden]down-> RouteEmail
+AIService -[hidden]down-> EmailService
+Logger -[hidden]down-> Cache
+
+
+' ============================================
+' LEGEND (Professional Documentation)
+' ============================================
+legend bottom
+  **Architecture Pattern:** Clean Architecture + Hexagonal (Ports & Adapters)
+  
+  **Tech Stack:**
+  • Frontend: Next.js 14 + React 19 + TypeScript + TailwindCSS + shadcn/ui
+  • Backend: Express 4 + Node.js 20 + TypeScript 5
+  • Database: PostgreSQL 15 (Supabase Cloud + RLS)
+  • AI: Google Gemini 2.0 Flash
+  • Email: Gmail SMTP/IMAP (OAuth2)
+  
+  **Component Metrics:**
+  • 11 Frontend Pages (Next.js App Router)
+  • 6 Custom Hooks (React business logic)
+  • 13 Backend REST Routes
+  • 9 Middleware Components (Security + Error pipeline)
+  • 2 Controllers (AgentController, DashboardController)
+  • 7 Domain Services (AI, Email, Inbox, PDF, Scraper, Cron, UserContext)
+  • 16 Database Tables (normalized schema)
+  
+  **Middleware Pipeline Flow:**
+  1️⃣ Helmet → Adds 13 security headers (XSS, Clickjacking protection)
+  2️⃣ CORS → Controls cross-origin access (localhost:3000 ↔ :3001)
+  3️⃣ Request Logger → Logs all requests with correlation ID
+  4️⃣ Rate Limiter → DDoS protection (100 req/15min per IP)
+  5️⃣ Auth (JWT) → Verifies JWT tokens from Supabase
+  6️⃣ Validation (Zod) → Schema validation for request body/params
+  7️⃣ Upload (Multer) → Handles file uploads (PDFs, attachments)
+  8️⃣ asyncHandler → Wraps async functions, forwards errors to #9
+  9️⃣ Error Handler → Global error catcher, returns formatted JSON
+  
+  **Design Patterns:**
+  • Repository Pattern: BaseService<T> (1/7 services)
+  • Mediator Pattern: AgentOrchestrator
+  • Singleton: Logger, Config, Cache
+  • Dependency Injection: Constructor-based
+  • SOLID Principles: Partially applied (see notes)
+  
+  **Line Types:**
+  ——— Blue (#1976D2): Frontend internal flow (React components)
+  ——— Orange Bold (#FF6F00): Cross-boundary calls (Frontend→Backend, External→Services)
+  ——— Green Bold (#43A047): Database access + Clean Architecture (Controllers, Extends)
+  ——— Yellow (#FBC02D): Middleware pipeline (sequential processing)
+  ——— Purple (#7B1FA2): Application layer routing (Routes, Orchestration)
+  ——— Gray (#616161): Infrastructure dependencies (Logger, Config, Cache)
+  - - - - Red Dashed (#D32F2F): Tech debt (bypasses controller layer)
+  ····· Hidden: Layout control (no visual)
+  
+  **⚠️ Architectural Debt:**
+  • 11/13 routes skip controllers (~3,736 lines inline handlers)
+  • Priority refactoring: EmailController (280 lines), PDFController (597 lines)
+  • 6/7 services don't use Repository Pattern (specialized patterns preferred)
+  
+  **Senior-Level Visualization Techniques:**
+  ✓ Ortho linetype (clean 90° angles)
+  ✓ Left-to-right flow (natural reading)
+  ✓ Color-coded tech debt (red dashed lines)
+  ✓ Hidden lines for layout control (no visual clutter)
+  ✓ Logical grouping by domain
+  ✓ Complete component visibility (not abstracted away)
+  ✓ Transparent about architectural problems
+  
+  **Purpose:** Complete technical reference + presentation-ready
+  **Detail Level:** Full (all components, all connections)
+  **Audience:** Technical teams, architects, senior developers
+  
+  **Related Diagrams:**
+  • 01-component-diagram.puml (original, max detail, 862 lines)
+  • 01-component-diagram-vertical.puml (top-to-bottom, 326 lines)
+  • 01-component-diagram-clean.puml (simplified, 300 lines)
+  • 02-class-diagram.puml (class relationships)
+  • 03-sequence-diagrams.puml (runtime flow)
 endlegend
 
 @enduml

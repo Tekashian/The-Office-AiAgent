@@ -15,6 +15,7 @@ import { startMemoryMonitoring } from './utils/performance';
 import agentRoutes from './routes/agentRoutes';
 import emailRoutes from './routes/emailRoutes';
 import emailInboxRoutes from './routes/emailInboxRoutes';
+import emailConfigRoutes from './routes/emailConfigRoutes';
 import emailTemplateRoutes from './routes/emailTemplateRoutes';
 import pdfRoutes from './routes/pdfRoutes';
 import scraperRoutes from './routes/scraperRoutes';
@@ -69,6 +70,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/agent', agentRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/email-inbox', emailInboxRoutes);
+app.use('/api/email-config', emailConfigRoutes);
 app.use('/api/email-templates', emailTemplateRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/scraper', scraperRoutes);

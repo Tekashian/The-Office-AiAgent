@@ -40,6 +40,17 @@ export function TaskModal({
   const [jobConfig, setJobConfig] = useState('{}');
   const [error, setError] = useState('');
 
+  const resetForm = () => {
+    setJobName('');
+    setScheduleType('once');
+    setScheduledDate('');
+    setScheduledTime('09:00');
+    setRecurringType('daily');
+    setJobType('email');
+    setJobConfig('{}');
+    setError('');
+  };
+
   useEffect(() => {
     if (editingJob) {
       setJobName(editingJob.name);
@@ -52,17 +63,6 @@ export function TaskModal({
       resetForm();
     }
   }, [editingJob, isOpen]);
-
-  const resetForm = () => {
-    setJobName('');
-    setScheduleType('once');
-    setScheduledDate('');
-    setScheduledTime('09:00');
-    setRecurringType('daily');
-    setJobType('email');
-    setJobConfig('{}');
-    setError('');
-  };
 
   const handleGenerateConfig = async () => {
     if (!jobName) {

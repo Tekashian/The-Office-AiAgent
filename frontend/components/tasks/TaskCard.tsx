@@ -66,7 +66,7 @@ export const TaskCard = React.memo(function TaskCard({
     return <Badge variant="default">{job.status}</Badge>;
   };
 
-  const TaskIcon = getTaskIcon(job.task_type);
+  const IconComponent = getTaskIcon(job.task_type);
 
   return (
     <div
@@ -79,7 +79,7 @@ export const TaskCard = React.memo(function TaskCard({
           <div className="flex items-start justify-between">
             <div className="flex items-start space-x-3 flex-1">
               <div className="p-2 bg-primary-100 dark:bg-primary-900 rounded-lg">
-                <TaskIcon className="h-4 w-4" />
+                <IconComponent className="h-4 w-4" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">

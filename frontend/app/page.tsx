@@ -201,11 +201,22 @@ export default function Home() {
 
             <Button 
               onClick={() => router.push('/auth')}
-              className="w-full gap-2"
+              className="w-full gap-2 relative overflow-hidden group transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-indigo-500/50"
               size="lg"
             >
-              <Activity className="h-5 w-5" />
-              Zaloguj się
+              {/* Animated gradient background */}
+              <span className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 animate-gradient-x"></span>
+              
+              {/* Shine effect */}
+              <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent"></span>
+              </span>
+              
+              {/* Content */}
+              <span className="relative flex items-center gap-2">
+                <Activity className="h-5 w-5 group-hover:rotate-180 transition-transform duration-500" />
+                <span className="font-semibold">Zaloguj się</span>
+              </span>
             </Button>
             
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">

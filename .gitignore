@@ -18,6 +18,8 @@ out/
 .env*.local
 !.env.example
 !.env*.local.example
+.secrets-temp.md
+QUICK_SECRETS_GUIDE.md
 
 # Logs
 *.log

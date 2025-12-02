@@ -47,10 +47,30 @@ export default function Home() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentTasks, setRecentTasks] = useState<RecentTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
+    checkAuthAndFetchData();
   }, []);
+
+  const checkAuthAndFetchData = async () => {
+    try {
+      // Check if user has token
+      const token = localStorage.getItem('supabase_token');
+      if (!token) {
+        setIsAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+      
+      setIsAuthenticated(true);
+      await fetchDashboardData();
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setIsAuthenticated(false);
+      setLoading(false);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -66,6 +86,10 @@ export default function Home() {
 
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
+      // If 401, redirect to login
+      if ((error as { response?: { status: number } }).response?.status === 401) {
+        setIsAuthenticated(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -143,6 +167,55 @@ export default function Home() {
     };
     return labels[type] || type;
   };
+
+  // Show login prompt if not authenticated
+  if (!loading && !isAuthenticated) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <div className="mb-6">
+              <Bot className="h-16 w-16 mx-auto text-indigo-600 dark:text-indigo-400 mb-4" />
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                Office Agent AI
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Inteligentny asystent do automatyzacji zadań biurowych
+              </p>
+            </div>
+            
+            <div className="space-y-3 mb-6">
+              <div className="flex items-center gap-3 text-left">
+                <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Automatyzacja emaili i dokumentów</span>
+              </div>
+              <div className="flex items-center gap-3 text-left">
+                <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Generowanie PDF i raportów</span>
+              </div>
+              <div className="flex items-center gap-3 text-left">
+                <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">AI-powered zadania cykliczne</span>
+              </div>
+            </div>
+
+            <Button 
+              onClick={() => router.push('/auth')}
+              className="w-full gap-2"
+              size="lg"
+            >
+              <Activity className="h-5 w-5" />
+              Zaloguj się
+            </Button>
+            
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+              Nie masz konta? Zarejestruj się za darmo
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

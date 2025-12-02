@@ -74,28 +74,35 @@ us-east-1
 
 ### SUPABASE_URL
 ```
-https://cunuvyqkijgipctivghq.supabase.co
+https://your-project-id.supabase.co
 ```
-✅ Already have this from your `.env` file!
+**How to get:**
+1. Go to https://supabase.com/dashboard
+2. Select your project
+3. Settings → API → Project URL
 
 ---
 
 ### SUPABASE_SERVICE_KEY
 ```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1bnV2eXFraWpnaXBjdGl2Z2hxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzIxMTU3OSwiZXhwIjoyMDc4Nzg3NTc5fQ.rxz8vJ_IgLdJxTXNEAsEPFfQydOO8y3cxa1NzEQ8Gg8
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...YOUR_ACTUAL_SERVICE_KEY
 ```
-✅ Already have this from your `.env` file!
+**How to get:**
+1. Go to https://supabase.com/dashboard
+2. Select your project
+3. Settings → API → service_role key (secret)
+⚠️ **NEVER commit this key to git!**
 
 ---
 
 ### SUPABASE_PROJECT_ID
 ```
-cunuvyqkijgipctivghq
+your-project-id-here
 ```
 **How to get:**
 1. Go to https://supabase.com/dashboard
 2. Select your project
-3. Settings → General → Project ID
+3. Settings → General → Reference ID
 
 ---
 
@@ -120,9 +127,13 @@ a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456
 
 ### AI_API_KEY
 ```
-AIzaSyD_QxqYAO4_jwipRPC07QcOi5AlapPnZr8
+AIzaSy...YOUR_ACTUAL_GEMINI_API_KEY
 ```
-✅ Already have this from your `.env` file!
+**How to get:**
+1. Go to https://aistudio.google.com/app/apikey
+2. Create new API key
+3. Copy the key
+⚠️ **NEVER commit this key to git!**
 
 ---
 

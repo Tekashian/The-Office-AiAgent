@@ -34,7 +34,7 @@ export const AgentMessage = memo<AgentMessageProps>(({ message, index }) => {
         <div
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 ${
             isUser
-              ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/50'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/50'
               : 'bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-600/50 animate-pulse-slow'
           }`}
           aria-hidden="true"
@@ -50,7 +50,7 @@ export const AgentMessage = memo<AgentMessageProps>(({ message, index }) => {
         <div
           className={`rounded-2xl px-4 py-3 transition-all hover:scale-[1.02] ${
             isUser
-              ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
               : 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900 dark:from-gray-800 dark:to-gray-900 dark:text-gray-100 shadow-lg'
           }`}
         >
@@ -58,7 +58,7 @@ export const AgentMessage = memo<AgentMessageProps>(({ message, index }) => {
           <time
             className={`mt-1 block text-xs ${
               isUser
-                ? 'text-primary-100'
+                ? 'text-indigo-100'
                 : 'text-gray-500 dark:text-gray-400'
             }`}
             dateTime={isoTime}

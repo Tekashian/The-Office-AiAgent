@@ -431,12 +431,12 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
       // Convert \n to proper line breaks for HTML
       const htmlBody = emailBody.replace(/\n/g, '<br>');
       
-      // Use Gmail SMTP with IMAP credentials
+      // Use Gmail SMTP with IMAP credentials (port 465 for Railway compatibility)
       const nodemailer = await import('nodemailer');
       const transporter = nodemailer.default.createTransport({
         host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
+        port: 465,
+        secure: true, // SSL
         auth: {
           user: imap.imap_user,
           pass: decryptedPassword,
@@ -446,7 +446,7 @@ IMPORTANT: Cron expressions format: "minute hour day month weekday" (e.g., "0 9 
         socketTimeout: 40000,      // 40 seconds
       });
 
-      logger.info('SMTP transporter created, attempting to send email...');
+      logger.info('SMTP transporter created (port 465/SSL), attempting to send email...');
 
       // Send email
       const info = await transporter.sendMail({

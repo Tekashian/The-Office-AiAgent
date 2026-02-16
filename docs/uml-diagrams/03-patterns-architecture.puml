@@ -1,0 +1,307 @@
+@startuml Backend-Patterns-Architecture
+title Backend Architecture - Design Patterns & Layers
+
+!define LIGHTBLUE #E3F2FD
+!define LIGHTGREEN #E8F5E9
+!define LIGHTPURPLE #F3E5F5
+!define LIGHTYELLOW #FFFDE7
+!define LIGHTORANGE #FFF3E0
+
+skinparam componentStyle rectangle
+skinparam BackgroundColor #FAFAFA
+skinparam shadowing false
+skinparam RoundCorner 6
+skinparam linetype ortho
+
+' ============================================
+' LAYERED ARCHITECTURE
+' ============================================
+
+package "🎨 PRESENTATION LAYER" as PresentationLayer LIGHTBLUE {
+  
+  package "Routes (13 endpointów)" {
+    component [agentRoutes.ts] as AgentRoute
+    component [emailRoutes.ts] as EmailRoute
+    component [pdfRoutes.ts] as PDFRoute
+    component [scraperRoutes.ts] as ScraperRoute
+    component [dashboardRoutes.ts] as DashRoute
+    component [... +8 more] as OtherRoutes
+  }
+  
+  package "Controllers (3 total)" {
+    component [BaseController\n**Abstract Class**\nTemplate Method Pattern] as BaseCtrl
+    component [AgentController\n**extends Base**\nchat(), processTask(), analyze()] as AgentCtrl
+    component [DashboardController\n**exists but unused**\ngetStats(), refresh()] as DashCtrl
+  }
+  
+  note bottom of BaseCtrl
+    **Template Method Pattern**
+    
+    Reużywalne metody:
+    • success(res, data, 200)
+    • created(res, data, 201)
+    • noContent(res, 204)
+    • getUserId(req)
+    • getPagination(req)
+    
+    DRY: 1x napisane, 2x użyte
+  end note
+}
+
+package "🛡️ MIDDLEWARE PIPELINE" as MiddlewareLayer LIGHTPURPLE {
+  
+  package "Global Middleware (app.use)" {
+    component [helmet()\nSecurity Headers] as Helmet
+    component [compression()\nGzip Response] as Compression
+    component [cors()\nCORS Policy] as CORS
+    component [express.json()\nBody Parser] as BodyParser
+    component [responseTime\nTiming] as ResponseTime
+    component [requestLogger\nLogging] as RequestLogger
+    component [rateLimit()\nDDoS Protection] as RateLimit
+  }
+  
+  package "Route-Specific Middleware" {
+    component [authenticateUser\n**JWT Validation**\nreq.userId = "123"] as AuthRequired
+    component [optionalAuth\n**JWT Optional**\nno error if missing] as AuthOptional
+    component [validate(schema)\n**Joi Validation**\nbody/params/query] as Validation
+    component [errorHandler\n**Centralized**\nCatch all errors] as ErrorHandler
+  }
+  
+  note bottom of AuthRequired
+    **Chain of Responsibility Pattern**
+    
+    Każdy middleware może:
+    1. next() - przekaż dalej
+    2. res.send() - zatrzymaj
+    3. throw Error - błąd
+    
+    Pipeline w index.ts (KOLEJNOŚĆ WAŻNA!):
+    helmet → cors → bodyParser
+    → logger → rateLimit → auth
+    → routes → errorHandler
+  end note
+}
+
+package "💼 BUSINESS LOGIC LAYER" as BusinessLayer LIGHTGREEN {
+  
+  package "Orchestrators (Mediator Pattern)" {
+    component [AgentOrchestrator\n**Koordynuje 4 serwisy**\nprocessMessage()\nexecuteTool()] as Orchestrator
+  }
+  
+  package "Domain Services (7 aktywnych)" {
+    component [AIService\nGemini 2.0\nsendRequest()] as AIService
+    component [EmailInboxService\nIMAP + AI\nscanInbox()] as InboxService
+    component [PDFService\nPuppeteer\ngenerate()] as PDFService
+    component [ScraperService\nCheerio\nscrape()] as ScraperService
+    component [CronService\nnode-cron\nschedule()] as CronService
+    component [UserContextService\nextends BaseService] as UserCtxService
+    component [EmailService\n**exists but unused**] as EmailService
+  }
+  
+  package "Generic Services (Repository Pattern)" {
+    component [BaseService<T>\n**Abstract Generic**\nfindById(), create(),\nupdate(), delete()] as BaseService
+  }
+  
+  note bottom of Orchestrator
+    **Mediator Pattern**
+    
+    Zamiast:
+    AIService → EmailService
+    PDFService → ScraperService
+    (N² connections)
+    
+    Mamy:
+    Orchestrator ↔ Services
+    (N connections)
+    
+    Centralizacja komunikacji!
+  end note
+  
+  note bottom of BaseService
+    **Repository Pattern**
+    
+    Generyczna klasa bazowa dla CRUD:
+    
+    class BaseService<T> {
+      abstract tableName: string;
+      
+      async findById(id): Promise<T>
+      async create(data): Promise<T>
+      async update(id, data): Promise<T>
+      async delete(id): Promise<void>
+    }
+    
+    UserContextService extends BaseService
+    ✓ Dziedziczy wszystkie metody
+    ✓ Type safety (TypeScript Generics)
+  end note
+}
+
+package "🏗️ INFRASTRUCTURE LAYER" as InfraLayer LIGHTYELLOW {
+  component [Config\nenv variables\nvalidation] as Config
+  component [Logger\nWinston\nstructured logs] as Logger
+  component [Cache\nLRU Cache\n5min TTL] as Cache
+  component [Encryption\nAES-256-CBC\nencrypt/decrypt] as Encryption
+  component [Errors\nCustom Error Classes\nAppError hierarchy] as Errors
+}
+
+package "🗄️ DATA ACCESS LAYER" as DataLayer LIGHTORANGE {
+  database "Supabase Client\n(Service Role)" as SupabaseAdmin {
+    component [17 Tables\nPostgreSQL 15\nRow Level Security] as Tables
+  }
+}
+
+' ============================================
+' CONNECTIONS - PRESENTATION TO MIDDLEWARE
+' ============================================
+AgentRoute -down-> AuthOptional : uses
+EmailRoute -down-> AuthRequired : uses
+PDFRoute -down-> AuthRequired : uses
+DashRoute -down-> AuthRequired : uses
+
+AgentRoute -down-> AgentCtrl : delegates to
+AgentCtrl -up-|> BaseCtrl : extends
+DashCtrl -up-|> BaseCtrl : extends
+
+' ============================================
+' CONNECTIONS - MIDDLEWARE PIPELINE
+' ============================================
+Helmet -[hidden]right-> Compression
+Compression -[hidden]right-> CORS
+CORS -[hidden]right-> BodyParser
+BodyParser -[hidden]right-> ResponseTime
+ResponseTime -[hidden]right-> RequestLogger
+RequestLogger -[hidden]right-> RateLimit
+
+AuthRequired -[hidden]right-> AuthOptional
+AuthOptional -[hidden]right-> Validation
+
+' ============================================
+' CONNECTIONS - CONTROLLERS TO SERVICES
+' ============================================
+AgentCtrl -down-> Orchestrator : calls
+PDFRoute -down-> PDFService : calls (direct)
+ScraperRoute -down-> ScraperService : calls (direct)
+DashRoute -down-> Cache : uses
+
+' ============================================
+' CONNECTIONS - ORCHESTRATOR TO SERVICES
+' ============================================
+Orchestrator -down-> AIService
+Orchestrator -down-> PDFService
+Orchestrator -down-> ScraperService
+Orchestrator -down-> CronService
+Orchestrator -down-> SupabaseAdmin : direct (inline email)
+
+EmailService -[#FF0000,dashed]-> Orchestrator : exists\nbut unused
+
+' ============================================
+' CONNECTIONS - SERVICES TO INFRASTRUCTURE
+' ============================================
+AIService -down-> Logger
+AIService -down-> Config
+AIService -down-> UserCtxService : getUserContext()
+
+PDFService -down-> Logger
+ScraperService -down-> Logger
+InboxService -down-> Logger
+
+EmailRoute -down-> Encryption : decrypt SMTP pass
+
+' ============================================
+' CONNECTIONS - SERVICES TO DATA
+' ============================================
+UserCtxService -up-|> BaseService : extends
+BaseService -down-> SupabaseAdmin
+AIService -down-> SupabaseAdmin
+InboxService -down-> SupabaseAdmin
+Orchestrator -down-> SupabaseAdmin
+
+' ============================================
+' EXTERNAL CONNECTIONS
+' ============================================
+AIService -[#FF6F00]right-> [Gemini AI\n2.0 Flash] : HTTP
+InboxService -[#FF6F00]right-> [Gmail API\nIMAP] : IMAP
+ScraperService -[#FF6F00]right-> [Web\nCheerio] : HTTP
+
+' ============================================
+' LEGEND
+' ============================================
+legend bottom left
+  **🎯 DESIGN PATTERNS UŻYWANE**
+  
+  **1. Layered Architecture (N-Tier)**
+  • Presentation → Middleware → Business Logic → Data Access
+  • Separation of Concerns (każda warstwa ma swoją rolę)
+  
+  **2. MVC Pattern (API version)**
+  • Model = Services + Database
+  • View = JSON responses
+  • Controller = Controllers (HTTP handling)
+  
+  **3. Chain of Responsibility**
+  • Middleware Pipeline (request → handler → handler → ...)
+  • Każdy może przetworzyć lub przekazać dalej
+  
+  **4. Template Method Pattern**
+  • BaseController: success(), created(), noContent()
+  • Dzieci reużywają implementację
+  
+  **5. Mediator Pattern**
+  • AgentOrchestrator koordynuje AIService, PDFService, ScraperService, CronService
+  • Redukuje N² connections do N connections
+  
+  **6. Repository Pattern**
+  • BaseService<T> - generic CRUD operations
+  • UserContextService extends BaseService
+  • Abstrakcja dostępu do danych
+  
+  **7. Dependency Injection**
+  • Services wstrzykiwane przez imports (ES modules)
+  • Testowalne (można mockować)
+  
+  **8. Singleton Pattern**
+  • export default new Service() - 1 instancja na całą app
+  
+  **9. Error Handling Pattern**
+  • Centralized: errorHandler middleware
+  • Custom Error Classes: AppError, ValidationError, AuthenticationError
+  
+  **10. Async Handler Pattern**
+  • asyncHandler() wrapper - automatyczny try-catch
+  • Eliminuje boilerplate
+  
+  **🔥 PRAGMATYZM > DOGMA**
+  
+  ✅ Controllers używane gdy potrzebne (Agent)
+  ✅ Inline functions gdy prostsze (Dashboard, Email)
+  ✅ DashboardController istnieje ale nieużywany (trade-off documented)
+  ✅ EmailService istnieje ale nieużywany (AI context cohesion)
+  
+  **This is REAL production code, not textbook perfect!**
+  
+  **📊 STATYSTYKI**
+  Routes: 13 endpointów
+  Controllers: 3 (1 abstract, 1 used, 1 unused)
+  Middleware: 5 plików (8 global + 4 route-specific)
+  Services: 7 active + 1 orchestrator + 1 base + 2 unused
+  Database: 17 tabel (PostgreSQL + RLS)
+  
+  **🚀 SKALOWALNOŚĆ**
+  ✓ Rate limiting (DDoS protection)
+  ✓ Response compression (gzip)
+  ✓ In-memory caching (LRU, 5min TTL)
+  ✓ Connection pooling (Supabase)
+  ✓ Request correlation IDs (tracing)
+  ✓ Graceful shutdown (SIGTERM/SIGINT)
+  
+  **🔐 BEZPIECZEŃSTWO**
+  ✓ Helmet (security headers: XSS, CSP, HSTS)
+  ✓ JWT validation (Supabase Auth)
+  ✓ Row Level Security (database policies)
+  ✓ AES-256-CBC encryption (SMTP passwords)
+  ✓ Rate limiting (per-user, per-route)
+  ✓ CORS policy (whitelist origins)
+endlegend
+
+@enduml

@@ -1,19 +1,205 @@
 @startuml Office-AI-Agent-Sequence-Diagrams
-title The Office AI Agent - Sequence Diagrams (Updated with Phase 2 Optimizations)
+title The Office AI Agent - Sequence Diagrams
 skinparam BackgroundColor FFFFFF
 skinparam shadowing false
 
-note top
-  **Phase 2 Enhancements Shown:**
-  • Request Logger - Correlation ID generation and request/response logging
-  • Rate Limiter - Rate limiting checks before processing
-  • Logger - Structured logging throughout all services
-  • Language Detection - Automatic Polish/English detection in AgentOrchestrator
-  • User Context Service - AI context aggregation (emails, tasks, notifications)
-  • Cache - Dashboard stats caching with TTL
-  • Error Handling - Custom error classes with proper status codes
-  • Performance Monitoring - Request duration tracking
-end note
+' ============================================
+' SCENARIO 0: Authentication Flow (NEW)
+' ============================================
+
+== User Registration & Login Flow ==
+
+actor User
+participant "Frontend\nauth/page.tsx" as AuthPage
+participant "lib/auth.ts\n(Auth Service)" as AuthLib
+participant "lib/supabase.ts\n(Client)" as SupabaseClient
+participant "Supabase\nAuth Server" as SupabaseAuth
+participant "PostgreSQL\nauth.users" as AuthDB
+participant "Browser\nlocalStorage" as Storage
+
+User -> AuthPage: 1. Enter email & password\nClick "Sign Up"
+activate AuthPage
+
+AuthPage -> AuthLib: 2. signUp(email, password)
+activate AuthLib
+
+AuthLib -> SupabaseClient: 3. supabase.auth.signUp({...})
+activate SupabaseClient
+
+SupabaseClient -> SupabaseAuth: 4. POST /auth/v1/signup
+activate SupabaseAuth
+
+SupabaseAuth -> SupabaseAuth: 5. Hash password (bcrypt)
+SupabaseAuth -> AuthDB: 6. INSERT INTO auth.users
+activate AuthDB
+AuthDB --> SupabaseAuth: user.id created
+deactivate AuthDB
+
+SupabaseAuth -> SupabaseAuth: 7. Generate confirmation token
+SupabaseAuth -> SupabaseAuth: 8. Send confirmation email
+SupabaseAuth --> SupabaseClient: 9. Response: {user, session: null}
+deactivate SupabaseAuth
+
+SupabaseClient --> AuthLib: user data
+deactivate SupabaseClient
+
+AuthLib --> AuthPage: {user, session: null}
+deactivate AuthLib
+
+AuthPage --> User: "Check your email"
+deactivate AuthPage
+
+... User clicks confirmation link ...
+
+User -> SupabaseAuth: Click email link
+activate SupabaseAuth
+
+SupabaseAuth -> AuthDB: UPDATE auth.users\nSET email_confirmed_at = NOW()
+activate AuthDB
+AuthDB --> SupabaseAuth: Confirmed
+deactivate AuthDB
+
+SupabaseAuth -> SupabaseAuth: Generate JWT (HS256)
+SupabaseAuth --> User: Redirect with JWT in URL
+deactivate SupabaseAuth
+
+User -> AuthPage: Return to app (auto-login)
+activate AuthPage
+
+AuthPage -> SupabaseClient: detectSessionInUrl()
+activate SupabaseClient
+
+SupabaseClient -> Storage: localStorage.setItem(\n'sb-auth-token', session)
+activate Storage
+Storage --> SupabaseClient: Saved
+deactivate Storage
+
+SupabaseClient --> AuthPage: Session created
+deactivate SupabaseClient
+
+AuthPage --> User: "Welcome!"
+deactivate AuthPage
+
+newpage
+
+== Subsequent Login & API Request with Token Injection ==
+
+User -> AuthPage: 10. Enter email & password\nClick "Sign In"
+activate AuthPage
+
+AuthPage -> AuthLib: 11. signIn(email, password)
+activate AuthLib
+
+AuthLib -> SupabaseClient: 12. supabase.auth.signInWithPassword({...})
+activate SupabaseClient
+
+SupabaseClient -> SupabaseAuth: 13. POST /auth/v1/token
+activate SupabaseAuth
+
+SupabaseAuth -> AuthDB: 14. SELECT encrypted_password WHERE email = ?
+activate AuthDB
+AuthDB --> SupabaseAuth: hashed password
+deactivate AuthDB
+
+SupabaseAuth -> SupabaseAuth: 15. bcrypt.compare(plain, hashed)
+
+alt Password valid
+  SupabaseAuth -> SupabaseAuth: 16. Generate JWT
+  SupabaseAuth --> SupabaseClient: 17. {access_token, refresh_token, user}
+else Password invalid
+  SupabaseAuth --> SupabaseClient: 401 Unauthorized
+end
+deactivate SupabaseAuth
+
+SupabaseClient -> Storage: 18. localStorage.setItem('sb-auth-token', session)
+activate Storage
+Storage --> SupabaseClient: Saved
+deactivate Storage
+
+SupabaseClient --> AuthLib: session
+deactivate SupabaseClient
+
+AuthLib --> AuthPage: {user, session}
+deactivate AuthLib
+
+AuthPage -> AuthPage: 19. Redirect to /agent
+AuthPage --> User: "Logged in"
+deactivate AuthPage
+
+... User interacts with app (e.g., sends chat message) ...
+
+participant "useAgent hook" as Hook
+participant "lib/api.ts\n(HTTP Client)" as APIClient
+participant "Backend\nExpress" as Backend
+participant "Auth\nMiddleware" as AuthMW
+
+User -> Hook: 20. User types message\nClicks "Send"
+activate Hook
+
+Hook -> APIClient: 21. apiClient.post(\n'/api/agent/chat', {message})
+activate APIClient
+note right: Before HTTP request,\nREQUEST interceptor runs
+
+APIClient -> AuthLib: 22. REQUEST INTERCEPTOR:\nawait getAccessToken()
+activate AuthLib
+
+AuthLib -> SupabaseClient: 23. getSession()
+activate SupabaseClient
+
+SupabaseClient -> Storage: 24. localStorage.getItem(\n'sb-auth-token')
+activate Storage
+Storage --> SupabaseClient: {access_token: "eyJhbGc...", ...}
+deactivate Storage
+
+SupabaseClient --> AuthLib: session
+deactivate SupabaseClient
+
+AuthLib --> APIClient: 25. return session.access_token
+deactivate AuthLib
+
+APIClient -> APIClient: 26. config.headers.Authorization =\n'Bearer eyJhbGc...'
+note right: Token AUTOMATICALLY injected\ninto every request!
+
+APIClient -> Backend: 27. POST /api/agent/chat\nAuthorization: Bearer eyJhbGc...
+activate Backend
+
+Backend -> AuthMW: 28. authenticateUser middleware
+activate AuthMW
+
+AuthMW -> AuthMW: 29. Extract token from\nAuthorization header
+AuthMW -> SupabaseAuth: 30. supabase.auth.getUser(token)
+activate SupabaseAuth
+
+SupabaseAuth -> SupabaseAuth: 31. Verify JWT signature\n(HMAC-SHA256)
+SupabaseAuth -> SupabaseAuth: 32. Check expiration\n(exp < now)
+
+alt Token valid
+  SupabaseAuth --> AuthMW: 33. {user: {id, email}}
+  AuthMW -> AuthMW: 34. req.userId = user.id\nreq.userEmail = user.email
+  AuthMW --> Backend: 35. next()
+else Token invalid/expired
+  SupabaseAuth --> AuthMW: 401 Unauthorized
+  AuthMW --> Backend: Return 401 error
+  Backend --> APIClient: 401 Unauthorized
+  APIClient -> APIClient: RESPONSE interceptor:\nredirect to /auth
+  APIClient --> User: "Session expired, please log in"
+end
+deactivate SupabaseAuth
+deactivate AuthMW
+
+Backend -> Backend: 36. Route handler\naccesses req.userId
+note right: User isolation:\nSELECT * FROM table\nWHERE user_id = req.userId
+
+Backend --> APIClient: 37. {success: true, data: {...}}
+deactivate Backend
+
+APIClient --> Hook: response.data
+deactivate APIClient
+
+Hook --> User: Display AI response
+deactivate Hook
+
+newpage
 
 ' ============================================
 ' SCENARIO 1: AI Agent Chat with Tool Execution

@@ -1,6 +1,7 @@
 # Office AI Agent 🤖
 
 **Nowoczesny system AI do automatyzacji pracy biurowej** - inteligentny agent który zastępuje zwykłego pracownika biurowego, automatyzując zadania takie jak wysyłanie emaili, generowanie PDF-ów, web scraping i wiele więcej.
+.
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript)

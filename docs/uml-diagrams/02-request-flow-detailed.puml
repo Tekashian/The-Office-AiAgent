@@ -1,0 +1,201 @@
+@startuml Backend-Request-Flow
+title Backend Architecture - Detailed Request Flow (POST /api/agent/chat)
+
+!define LIGHTBLUE #E3F2FD
+!define LIGHTGREEN #E8F5E9
+!define LIGHTPURPLE #F3E5F5
+!define LIGHTYELLOW #FFFDE7
+!define LIGHTORANGE #FFF3E0
+!define LIGHTRED #FFEBEE
+
+skinparam backgroundColor #FAFAFA
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+actor "Client\n(Frontend)" as Client
+box "🎨 PRESENTATION LAYER" LIGHTBLUE
+  participant "Router\n(agentRoutes)" as Router
+  participant "Middleware\n(optionalAuth)" as Middleware
+  participant "Controller\n(AgentController)" as Controller
+end box
+
+box "💼 BUSINESS LOGIC LAYER" LIGHTGREEN
+  participant "Orchestrator\n(AgentOrchestrator)" as Orchestrator
+  participant "AIService\n(Gemini)" as AIService
+  participant "EmailService\n(nodemailer)" as EmailService
+end box
+
+box "🗄️ DATA LAYER" LIGHTYELLOW
+  database "Supabase\n(PostgreSQL)" as DB
+end box
+
+box "☁️ EXTERNAL APIs" LIGHTORANGE
+  participant "Gemini AI\n2.0 Flash" as Gemini
+  participant "SMTP Server\n(Gmail)" as SMTP
+end box
+
+== 1️⃣ CLIENT REQUEST ==
+Client -> Router: POST /api/agent/chat\n**Headers:**\n  Authorization: Bearer <JWT>\n**Body:**\n  { message: "Send email to john@example.com" }
+note right of Client
+  Frontend używa:
+  apiClient.post('/agent/chat', { message })
+  
+  apiClient automatycznie dodaje JWT
+  przez interceptor
+end note
+
+== 2️⃣ MIDDLEWARE PIPELINE ==
+Router -> Router: app.use(helmet()) ✅
+note right: Security headers:\nX-Frame-Options, CSP
+
+Router -> Router: app.use(compression()) ✅
+note right: Gzip response
+
+Router -> Router: app.use(cors()) ✅
+note right: Validate origin:\nhttp://localhost:3000
+
+Router -> Router: app.use(express.json()) ✅
+note right: Parse JSON body:\nreq.body = { message: "..." }
+
+Router -> Router: app.use(responseTime) ✅
+note right: Start timer:\nX-Response-Time
+
+Router -> Router: app.use(requestLogger) ✅
+note right: Log request:\nmethod, url, ip, correlationId
+
+Router -> Router: app.use(rateLimit()) ✅
+note right: Check limits:\n100 requests / 15 min
+
+== 3️⃣ ROUTING ==
+Router -> Router: Match route:\n/api/agent + /chat
+note right: Express Router\nfinds handler
+
+== 4️⃣ ROUTE-SPECIFIC MIDDLEWARE ==
+Router -> Middleware: optionalAuth(req, res, next)
+activate Middleware
+
+Middleware -> Middleware: extractToken(req)
+note right: Extract from headers:\nAuthorization: Bearer <token>
+
+Middleware -> DB: validateToken(token)\nsupabase.auth.getUser(token)
+activate DB
+DB --> Middleware: { id: "123", email: "user@example.com" }
+deactivate DB
+
+Middleware -> Middleware: Enrich request:\nreq.userId = "123"\nreq.userEmail = "user@example.com"
+Middleware -> Router: next()
+deactivate Middleware
+
+== 5️⃣ CONTROLLER ==
+Router -> Controller: agentController.chat(req, res)
+activate Controller
+
+Controller -> Controller: Validate request:\nif (!req.body.message)\n  throw ValidationError
+
+Controller -> Orchestrator: processMessage(\n  message,\n  userId,\n  conversationHistory\n)
+deactivate Controller
+
+== 6️⃣ ORCHESTRATOR (Mediator Pattern) ==
+activate Orchestrator
+
+Orchestrator -> Orchestrator: detectLanguage(message)
+note right: Polish or English?\nRegex: /[ąćęłńóśźż]/
+
+Orchestrator -> Orchestrator: getSystemPrompt(language)
+note right: Build prompt with tools:\n- send_email\n- generate_pdf\n- scrape_website\n- create_cron_job
+
+Orchestrator -> AIService: detectIntent(\n  message,\n  systemPrompt,\n  userId\n)
+
+== 7️⃣ AI SERVICE ==
+activate AIService
+
+AIService -> DB: Get user context:\nselect * from user_profiles\nwhere user_id = '123'
+activate DB
+DB --> AIService: { name, preferences,\n  recent_activity, ... }
+deactivate DB
+
+AIService -> AIService: Build full prompt:\nuserContext + systemPrompt + message
+
+AIService -> Gemini: POST https://generativelanguage.googleapis.com/\n  v1beta/models/gemini-2.0-flash-exp:generateContent\n\n**Body:**\n  { contents: [{ parts: [{ text: prompt }] }] }
+activate Gemini
+Gemini --> AIService: { candidates: [{\n  content: {\n    parts: [{ text: '{"tool": "send_email", ... }' }]\n  }\n}] }
+deactivate Gemini
+
+AIService -> AIService: Parse JSON response:\ntool = "send_email"\nparameters = { to, subject, body }
+
+AIService --> Orchestrator: { tool: "send_email",\n  parameters: {...} }
+deactivate AIService
+
+== 8️⃣ TOOL EXECUTION ==
+
+Orchestrator -> Orchestrator: executeTool("send_email")
+
+Orchestrator -> DB: Get email config:\nselect * from user_email_configs\nwhere user_id = '123'
+activate DB
+DB --> Orchestrator: { smtp_host, smtp_port,\n  smtp_user, smtp_pass_encrypted }
+deactivate DB
+
+Orchestrator -> Orchestrator: Decrypt password:\ndecrypt(smtp_pass_encrypted, SECRET_KEY)
+
+Orchestrator -> EmailService: Create transporter:\nnodemailer.createTransport({ ... })
+activate EmailService
+
+EmailService -> SMTP: SMTP handshake:\nEHLO → AUTH LOGIN → MAIL FROM
+activate SMTP
+SMTP --> EmailService: 250 OK
+deactivate SMTP
+
+EmailService -> SMTP: Send email:\nRCPT TO john@example.com\nDATA: subject + body
+activate SMTP
+SMTP --> EmailService: 250 2.0.0 OK <message-id>
+deactivate SMTP
+
+EmailService --> Orchestrator: { success: true,\n  messageId: "..." }
+deactivate EmailService
+
+Orchestrator -> DB: Save to history:\ninsert into emails_sent (\n  user_id, to, subject, body,\n  status, message_id, sent_at\n)
+activate DB
+DB --> Orchestrator: { id: "456" }
+deactivate DB
+
+Orchestrator -> AIService: Generate natural response:\ngenerateConfirmation(\n  action,\n  result,\n  language\n)
+activate AIService
+AIService -> Gemini: POST generateContent\n"Summarize this action in natural language:\nSent email to john@example.com"
+activate Gemini
+Gemini --> AIService: "✅ Email sent successfully\nto john@example.com!"
+deactivate Gemini
+AIService --> Orchestrator: confirmation message
+deactivate AIService
+
+Orchestrator --> Controller: return confirmation
+deactivate Orchestrator
+
+== 9️⃣ SAVE CONVERSATION ==
+activate Controller
+Controller -> DB: Save chat messages:\ninsert into chat_messages (\n  user_id, role, content\n) values\n  ('123', 'user', 'Send email...'),\n  ('123', 'assistant', '✅ Email sent...')
+activate DB
+DB --> Controller: { id: "789", "790" }
+deactivate DB
+
+== 🔟 RESPONSE ==
+Controller -> Controller: this.success(res, { content })
+note right: BaseController method:\nres.status(200).json({\n  success: true,\n  data: { content },\n  timestamp: now\n})
+
+Controller --> Router: Response object
+deactivate Controller
+
+Router -> Router: responseTime.finishTimer()
+note right: X-Response-Time: 1243ms
+
+Router -> Router: requestLogger.logResponse()
+note right: Log: 200 OK, 1243ms
+
+Router --> Client: **200 OK**\n{\n  "success": true,\n  "data": {\n    "content": "✅ Email sent successfully!"\n  },\n  "timestamp": "2026-02-16T10:30:45.123Z"\n}\n**Headers:**\n  X-Response-Time: 1243ms\n  X-Correlation-ID: abc-123-def
+
+== ✅ CLIENT UPDATE ==
+Client -> Client: Update UI:\n- Show success message\n- Add to chat history\n- Trigger notification
+
+@enduml
